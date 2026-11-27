@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Imagine City</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Mitr:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script>if(location.hash==='#editor')location.replace('editor.html')</script>
+<script src="js/00-resize-sync.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="stage"><canvas id="cv" aria-hidden="true"></canvas><canvas id="sc" aria-hidden="true"></canvas></div>
+  <div class="meter" id="meter" aria-hidden="true"></div>
+  <main id="screen"></main>
+  <div class="foot">
+    <label><input type="checkbox" id="devbox"> โหมดทีม (ดูคะแนน)</label>
+    <button type="button" id="restart">เริ่มใหม่</button>
+  </div>
+</div>
+<div id="plc" aria-live="polite"></div>
+<button type="button" id="snd" aria-label="เปิด/ปิดเสียงเพลง" aria-pressed="true">♪</button>
+<script src="data/story.js"></script>
+<script src="js/01-core-state.js"></script>
+<script src="js/02-sky-world.js"></script>
+<script src="js/03-city-art.js"></script>
+<script src="js/04-story-camera-draw.js"></script>
+<script src="js/05-travel-and-audio.js"></script>
+<script src="js/06-screens.js"></script>
+<script src="js/07-actions-and-boot.js"></script>
+<script src="js/08-scene-layer.js"></script>
+<script src="js/09-button-feedback.js"></script>
+<script src="js/10-intro-city.js"></script>
+<script src="js/11-items-scene.js"></script>
+<script src="js/12-back-button.js"></script>
+<script src="js/13-result-card.js"></script>
+<script src="js/14-result-mascots.js"></script>
+<script src="js/15-floating-rocks.js"></script>
+<script src="js/16-edge-rocks.js"></script>
+<script src="js/17-home-rocks.js"></script>
+<script src="js/18-sun.js"></script>
+<script src="js/19-aurora.js"></script>
+<script src="js/20-shop-scene.js"></script>
+<script src="js/21-card-open.js"></script>
+</body>
+</html>
