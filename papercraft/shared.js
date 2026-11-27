@@ -295,32 +295,18 @@ export function sidePage(st, root, { x = -19, y = -4, z = 10, rx = 6, rz = 5, se
   return isl;
 }
 
-/* the guide's look: the pixelfx animation holy/sunburst (120 frames, 30 fps, loop), packed by
-   tools/make-sunburst-atlas.py into a 16x8 atlas on black, drawn additively. One texture shared by every scene. */
-const SUN = { cols: 16, rows: 8, n: 120, fps: 30, tex: null, waiting: new Set() };
-let sunDone; export const sunReady = new Promise(r => (sunDone = r));   // resolves once the atlas has loaded (or failed)
-function sunTex() {
-  if (SUN.tex) return SUN.tex;
-  const fin = () => { sunDone(); SUN.waiting.forEach(st => st.render()); SUN.waiting.clear(); };
-  const t = new THREE.TextureLoader().load(new URL('./assets/sunburst-atlas.webp', import.meta.url).href, fin, undefined, fin);
-  t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
-  t.repeat.set(1 / SUN.cols, 1 / SUN.rows);
-  return (SUN.tex = t);
-}
-
-/** the guide light: the sunburst animation (a pixel star of rays) with a warm glow. It IS the key light AND the
-    player's marker. flyTo(x, y, z) moves it on a spring; home() brings it back; flash(hex) tints it briefly. */
+/** the guide light: a cream paper star with a warm glow. It IS the key light AND the player's marker.
+    flyTo(x, y, z) moves it on a spring; home() brings it back; flash(hex) tints it briefly. */
 export function guide(st, parent, { x = 0, y = 4.5, z = 2, size = 1.3, power = 14 } = {}) {
   const grp = new THREE.Group(); grp.position.set(x, y, z); parent.add(grp);
-  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  sun.scale.setScalar(2.3 * size); sun.renderOrder = 6; grp.add(sun);
-  if (!sun.material.map.image) SUN.waiting.add(st);   // a frozen or idle stage redraws once the atlas arrives
-  const st1 = { mesh: sun };   // kept under the old name: scenes may read G.star.mesh
+  const pts = star(.44 * size, .19 * size);
+  const st1 = card(st, { outline: pts, base: '#FFF6D6', ppu: 90, th: .06, seed: 91, unlit: true, edge: '#E8D79A', paint: P => P.layer(P.poly(pts.map(([a, b]) => [a * .55, b * .55])), '#FFFBEA', { shadow: .3 }) });
+  grp.add(st1.mesh);
   const gc = document.createElement('canvas'); gc.width = gc.height = 128; const g = gc.getContext('2d');
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,241,176,.95)'); gr.addColorStop(.22, 'rgba(255,241,176,.4)'); gr.addColorStop(1, 'rgba(255,241,176,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(gc, st), color: PAL.guide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .85 }));
-  glow.scale.setScalar(3 * size); grp.add(glow);
+  glow.scale.setScalar(3.6 * size); grp.add(glow);
   const light = new THREE.PointLight(PAL.guide, 0, 0, 1); grp.add(light);
   st.lightPos.copy(grp.position); // shadows of pieces built after this fall away from here
   const home = grp.position.clone(), tgt = home.clone(), base = new THREE.Color(PAL.guide), tint = new THREE.Color();
@@ -332,12 +318,12 @@ export function guide(st, parent, { x = 0, y = 4.5, z = 2, size = 1.3, power = 1
     if (st.reduce) { sx.snap(tgt.x); sy.snap(tgt.y); sz.snap(tgt.z); } else { sx.step(dt); sy.step(dt); sz.step(dt); }
     const bob = st.reduce ? 0 : Math.sin(t * 1.3) * .12;
     grp.position.set(sx.x, sy.x + bob + (1 - G.level) * 2.2, sz.x);
-    { const f = st.reduce ? 0 : Math.floor(t * SUN.fps) % SUN.n, tx = sunTex(); tx.offset.set((f % SUN.cols) / SUN.cols, 1 - (Math.floor(f / SUN.cols) + 1) / SUN.rows); }
+    if (!st.reduce) st1.mesh.rotation.y = Math.sin(t * .7) * .35;
     G.pulse = Math.max(0, G.pulse - dt / 1.6);
     tint.copy(base).lerp(G.pulseCol, Math.sin(Math.min(1, G.pulse) * Math.PI / 2) * .55);
-    light.color.copy(tint); glow.material.color.copy(tint); sun.material.color.setRGB(1, 1, 1).lerp(G.pulseCol, Math.sin(Math.min(1, G.pulse) * Math.PI / 2) * .45);
+    light.color.copy(tint); glow.material.color.copy(tint);
     light.intensity = G.power * G.level * G.boost * (1 + G.pulse * .25);
-    glow.material.opacity = .7 * G.level; sun.material.opacity = G.level;
+    glow.material.opacity = .85 * G.level;
     st1.mesh.visible = G.level > .02;
   });
   G.flash = (hex) => { G.pulseCol.set(hex); G.pulse = 1; };
