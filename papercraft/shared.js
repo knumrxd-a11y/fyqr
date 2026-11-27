@@ -340,7 +340,7 @@ export function person(st, parent, { x = 0, z = 0, yaw = 0, h = 2.6, colour = nu
   for (let i = 0; i <= 14; i++) { const a = -0.95 + i / 14 * (Math.PI + 1.9); out.push([Math.cos(a) * r, cy + Math.sin(a) * r]); }
   out.push([-r * .45, sh], [-tw * .38, sh], [-tw / 2, sh * .86]);
   if (arms) { out.splice(3, 0, [tw / 2 + h * .12, sh * 1.18], [tw / 2 + h * .2, sh * 1.12], [tw / 2 + .06, sh * .72]); }
-  const coat = [PAL.mid, PAL.dark, mix(PAL.mid, PAL.light, .5), PAL.deep][kind % 4], backDefault = back;
+  const coat0 = [PAL.mid, PAL.dark, mix(PAL.mid, PAL.light, .5), PAL.deep][kind % 4], backDefault = back; let coat = coat0;
   const acc = colour ? tone(colour, level) : mix(PAL.light, PAL.cream, .3);
   const paint = (accent, back = backDefault) => P => {
     P.layer(P.poly([[-bw * .42, 0], [bw * .42, 0], [tw * .4, sh * .82], [-tw * .4, sh * .82]]), shade(coat, .9), { shadow: .4 });
@@ -358,7 +358,8 @@ export function person(st, parent, { x = 0, z = 0, yaw = 0, h = 2.6, colour = nu
   if (twoSided) { cb = card(st, { outline: out.map(([a, b]) => [-a, b]), base: coat, ppu: 40, seed: seed + 401, paint: paint(acc, true) }); cb.mesh.rotation.y = Math.PI; cb.mesh.position.z = -.075; cards.push(cb); }
   const p = stand(st, parent, { x, z, yaw, cards, shadowOutline: shadow ? out : null, order, shadow: { len: .6, opacity: .42, blob: true } });
   p.card = c; p.h = h;
-  p.recolour = (hex, lv = 1) => { const a = hex ? tone(hex, lv) : acc; c.reprint(paint(a)); if (cb) cb.reprint(paint(a, true)); };
+  /* coatMix > 0 also tints the coat ("getting their colour back"), 0 restores the grey coat */
+  p.recolour = (hex, lv = 1, coatMix = 0) => { const a = hex ? tone(hex, lv) : acc; coat = coatMix && hex ? mix(coat0, tone(hex, lv), coatMix) : coat0; c.reprint(paint(a), coat); if (cb) cb.reprint(paint(a, true), coat); };
   return p;
 }
 
