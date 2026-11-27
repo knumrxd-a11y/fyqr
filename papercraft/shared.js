@@ -135,7 +135,7 @@ function canvasTex(cv, st) {
    holes: list of outlines cut out (doors, arches). key: cache the print + geometry for identical pieces.
    Returns { mesh, outline, P, tex, mat, reprint(paint) }. */
 export function card(st, o) {
-  const { outline, paint, base = PAL.light, ppu = 48, th = .07, seed = 1, blur = 0, edge = PAL.edge, rim = true, fibre = 1, holes = null, key = null, unlit = false } = o;
+  const { outline, paint, base = PAL.light, ppu = 48, th = .07, seed = 1, blur = 0, edge = PAL.edge, rim = true, fibre = 1, holes = null, key = null, unlit = false, emit = 0 } = o;
   if (key && st._cache.has(key)) { const c = st._cache.get(key); return { ...c, mesh: new THREE.Mesh(c.mesh.geometry, c.mat), shared: true }; }
   const P = printer(outline, ppu, st.L, seed);
   const holePaths = holes ? holes.map(h => P.poly(h)) : [];
@@ -166,6 +166,7 @@ export function card(st, o) {
   }
   geo.clearGroups();
   const mat = unlit ? new THREE.MeshBasicMaterial({ map: tex }) : new THREE.MeshLambertMaterial({ map: tex });
+  if (emit && !unlit) { mat.emissive = new THREE.Color(1, 1, 1).multiplyScalar(emit); mat.emissiveMap = tex; }   // festive paper that reads at night
   const mesh = new THREE.Mesh(geo, mat);
   const c = { mesh, outline, P, tex, mat, reprint(pnt, nb) { if (nb) baseCol = nb; draw(pnt); tex.needsUpdate = true; } };
   if (key) st._cache.set(key, c);
@@ -333,15 +334,15 @@ export function guide(st, parent, { x = 0, y = 4.5, z = 2, size = 1.3, power = 1
 
 /** a paper townsperson (not the hero): head + body in one cut card, scarf / coat accent.
     colour: accent hex (toned by level); back: seen from behind (no face). Turn with piece.base.rotation.y */
-export function person(st, parent, { x = 0, z = 0, yaw = 0, h = 2.6, colour = null, level = .3, seed = 1, back = false, order = 0, kind = 0, shadow = true, arms = false }) {
+export function person(st, parent, { x = 0, z = 0, yaw = 0, h = 2.6, colour = null, level = .3, seed = 1, back = false, order = 0, kind = 0, shadow = true, arms = false, twoSided = false }) {
   const R = rng(seed * 7 + 3), bw = h * (.36 + R() * .08), tw = h * (.22 + R() * .05), sh = h * .58, r = h * (.15 + R() * .02), cy = sh + r * .95;
   const out = [[-bw / 2, 0], [bw / 2, 0], [tw / 2, sh * .86], [tw * .38, sh], [r * .45, sh]];
   for (let i = 0; i <= 14; i++) { const a = -0.95 + i / 14 * (Math.PI + 1.9); out.push([Math.cos(a) * r, cy + Math.sin(a) * r]); }
   out.push([-r * .45, sh], [-tw * .38, sh], [-tw / 2, sh * .86]);
   if (arms) { out.splice(3, 0, [tw / 2 + h * .12, sh * 1.18], [tw / 2 + h * .2, sh * 1.12], [tw / 2 + .06, sh * .72]); }
-  const coat = [PAL.mid, PAL.dark, mix(PAL.mid, PAL.light, .5), PAL.deep][kind % 4];
+  const coat = [PAL.mid, PAL.dark, mix(PAL.mid, PAL.light, .5), PAL.deep][kind % 4], backDefault = back;
   const acc = colour ? tone(colour, level) : mix(PAL.light, PAL.cream, .3);
-  const paint = (accent) => P => {
+  const paint = (accent, back = backDefault) => P => {
     P.layer(P.poly([[-bw * .42, 0], [bw * .42, 0], [tw * .4, sh * .82], [-tw * .4, sh * .82]]), shade(coat, .9), { shadow: .4 });
     P.layer(P.poly(ribbon([[-tw * .5, sh * .88], [0, sh * .8], [tw * .5, sh * .88]], h * .07)), accent, { shadow: .5 }); // scarf
     P.layer(P.circle(0, cy, r * .98), back ? PAL.hair : PAL.skin, { shadow: .3 });
@@ -352,8 +353,12 @@ export function person(st, parent, { x = 0, z = 0, yaw = 0, h = 2.6, colour = nu
     [.3, .5].forEach(y => P.layer(P.circle(0, sh * y, h * .025), PAL.cream, { shadow: .2, lip: 0 }));
   };
   const c = card(st, { outline: out, base: coat, ppu: 54, seed: seed + 400, paint: paint(acc) });
-  const p = stand(st, parent, { x, z, yaw, cards: [c], shadowOutline: shadow ? out : null, order, shadow: { len: .6, opacity: .42, blob: true } });
-  p.card = c; p.recolour = (hex, lv = 1) => c.reprint(paint(hex ? tone(hex, lv) : acc)); p.h = h;
+  const cards = [c];
+  let cb = null;   // two-sided: a back print (hair, no face) glued behind, so a figure can turn round
+  if (twoSided) { cb = card(st, { outline: out.map(([a, b]) => [-a, b]), base: coat, ppu: 40, seed: seed + 401, paint: paint(acc, true) }); cb.mesh.rotation.y = Math.PI; cb.mesh.position.z = -.075; cards.push(cb); }
+  const p = stand(st, parent, { x, z, yaw, cards, shadowOutline: shadow ? out : null, order, shadow: { len: .6, opacity: .42, blob: true } });
+  p.card = c; p.h = h;
+  p.recolour = (hex, lv = 1) => { const a = hex ? tone(hex, lv) : acc; c.reprint(paint(a)); if (cb) cb.reprint(paint(a, true)); };
   return p;
 }
 
@@ -389,7 +394,7 @@ export function building(st, parent, { x = 0, z = 0, yaw = 0, w = 4, h = 6, d = 
   const f = card(st, { outline: out, base: fBase, ppu, seed, blur, paint: facade(true) });
   const cards = [f];
   let bk = null;
-  if (back) { bk = card(st, { outline: out, base: mix(base, back.colour, .45), ppu, seed: seed + 1, blur, paint: facade(false) }); bk.mesh.rotation.y = Math.PI; bk.mesh.position.z = -.08; cards.push(bk); }
+  if (back) { bk = card(st, { outline: out, base: mix(base, back.colour, back.mix ?? .62), ppu, seed: seed + 1, blur, emit: back.emit ?? .22, paint: facade(false) }); bk.mesh.rotation.y = Math.PI; bk.mesh.position.z = -.08; cards.push(bk); }
   let sd = null;
   if (side) {
     const so = [[0, 0], [d, 0], [d, top], [0, top]];
@@ -475,7 +480,7 @@ export function bunting(st, parent, { a, b, sag = .8, n = 9, colours = null, lev
     const col = colours ? colours[(i - 1) % colours.length] : null;
     const out = [[-size * .5, 0], [size * .5, 0], [0, -size * 1.1]];
     const mk = (lv) => P => P.layer(P.circle(0, -size * .35, size * .12), PAL.cream, { shadow: .3, lip: 0 });
-    const c = card(st, { outline: out, base: col ? tone(col, level) : (i % 2 ? PAL.light : PAL.mid), ppu: 44, th: .04, seed: seed + i, paint: mk(level) });
+    const c = card(st, { outline: out, base: col ? tone(col, level) : (i % 2 ? PAL.light : PAL.mid), ppu: 44, th: .04, seed: seed + i, paint: mk(level), emit: col ? .4 * level : 0 });
     const base = new THREE.Group(); base.position.set(px, py, pz); base.rotation.y = Math.atan2(-(b[2] - a[2]), b[0] - a[0]); grp.add(base);
     const hg = new THREE.Group(); hg.add(c.mesh); base.add(hg);
     const h = st.hinge(hg, { order: order + i * .1, flat: -Math.PI / 2, up: 0 });
