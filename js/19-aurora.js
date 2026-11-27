@@ -11,7 +11,7 @@ document.body.appendChild(v);
 const go=()=>{const p=v.play();if(p&&p.catch)p.catch(()=>{})};go();
 /* some phones block autoplay until the first touch */
 ['pointerdown','touchstart','keydown'].forEach(e=>addEventListener(e,()=>{if(v.paused)go()},{once:true,passive:true}));
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&v.paused)go()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)v.pause();else if(v.paused)go()});
 return{draw(c,W,H,a){
   if(v.readyState<2||!v.videoWidth)return;
   /* cover the upper sky: as wide as the screen and at least 70% of its height, anchored to the top */

@@ -6,15 +6,26 @@ function travelThen(fn,d){
 }
 /* ---------- generative music + sfx (WebAudio, no files) ---------- */
 const A={c:null,on:true,step:0,nxt:0},CH=[[57,60,64,67],[53,57,60,65],[48,55,60,64],[55,59,62,67]],hz=n=>440*Math.pow(2,(n-69)/12);
+/* The sound graph (context, 2.8 s reverb, filter) is built ahead in idle-time pieces while the home page is open,
+   so the first click only has to start it (building it there froze the page for up to ~0.8 s on slow laptops).
+   The context waits suspended until that click: nothing plays before it, exactly as before. */
+const AP=[
+  ()=>{const C=window.AudioContext||window.webkitAudioContext;if(!C)return false;const c=A.c=new C();A.m=c.createGain();A.m.gain.value=A.on?.55:0;
+    const comp=c.createDynamicsCompressor();A.m.connect(comp);comp.connect(c.destination);A.len=c.sampleRate*2.8;A.buf=c.createBuffer(2,A.len,c.sampleRate)},
+  ()=>noise(0),()=>noise(1),
+  ()=>{const c=A.c;A.rv=c.createConvolver();A.rv.buffer=A.buf;const rg=c.createGain();rg.gain.value=.5;A.rv.connect(rg);rg.connect(A.m);
+    A.lp=c.createBiquadFilter();A.lp.type='lowpass';A.lp.frequency.value=900;A.lp.connect(A.m);A.lp.connect(A.rv);A.ready=true}];
+/* white noise for the reverb tail (its own generator: the page's Math.random sequence stays as it was) */
+let nz=(Date.now()^0x9e3779b9)>>>0;
+function noise(ch){const d=A.buf.getChannelData(ch),len=A.len;for(let i=0;i<len;i++){nz=(nz*1664525+1013904223)>>>0;d[i]=(nz/2147483648-1)*Math.pow(1-i/len,2.6)}}
+let apI=0;
+function prepAudio(all){while(apI<AP.length){if(AP[apI++]()===false){apI=AP.length;return}if(!all)break}}
+(function idleAudio(){if(apI>=AP.length||A.go)return;const f=()=>{if(A.go)return;prepAudio(false);idleAudio()};
+  window.requestIdleCallback?requestIdleCallback(f,{timeout:4000}):setTimeout(f,300)})();
 function startAudio(){
-  if(A.c){if(A.c.state==='suspended')A.c.resume();return}
-  const C=window.AudioContext||window.webkitAudioContext;if(!C)return;
-  const c=A.c=new C();A.m=c.createGain();A.m.gain.value=A.on?.55:0;
-  const comp=c.createDynamicsCompressor();A.m.connect(comp);comp.connect(c.destination);
-  const len=c.sampleRate*2.8,buf=c.createBuffer(2,len,c.sampleRate);
-  for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6)}
-  A.rv=c.createConvolver();A.rv.buffer=buf;const rg=c.createGain();rg.gain.value=.5;A.rv.connect(rg);rg.connect(A.m);
-  A.lp=c.createBiquadFilter();A.lp.type='lowpass';A.lp.frequency.value=900;A.lp.connect(A.m);A.lp.connect(A.rv);
+  if(A.go){if(A.c.state==='suspended')A.c.resume();return}
+  prepAudio(true);if(!A.ready)return;A.go=true;
+  const c=A.c;if(c.state==='suspended')c.resume();
   A.nxt=c.currentTime+.1;setInterval(sched,120);
 }
 function tone(n,t,dur,type,vol,att,dest){const c=A.c,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=hz(n);
@@ -30,7 +41,7 @@ function sched(){
     A.nxt+=60/74/2}
 }
 function sfx(k){
-  const c=A.c;if(!c||!A.on)return;const t=c.currentTime;
+  const c=A.c;if(!c||!A.on||!A.go)return;const t=c.currentTime;
   if(k==='pick'){[880,1318.5,1760].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain(),u=t+i*.05;o.frequency.value=f;
     g.gain.setValueAtTime(.0001,u);g.gain.exponentialRampToValueAtTime(.12,u+.01);g.gain.exponentialRampToValueAtTime(.0001,u+.9);
     o.connect(g);g.connect(A.m);g.connect(A.rv);o.start(u);o.stop(u+1)})}
@@ -44,7 +55,7 @@ function sfx(k){
 const sndBtn=document.getElementById('snd');
 sndBtn.addEventListener('click',()=>{startAudio();A.on=!A.on;sndBtn.classList.toggle('off',!A.on);sndBtn.setAttribute('aria-pressed',A.on);
   if(A.c)A.m.gain.setTargetAtTime(A.on?.55:0,A.c.currentTime,.15)});
-document.addEventListener('visibilitychange',()=>{if(A.c)document.hidden?A.c.suspend():A.c.resume()});
+document.addEventListener('visibilitychange',()=>{if(A.go)document.hidden?A.c.suspend():A.c.resume()});
 function burst(m){
   const col=MJ[m].c;
   for(const b of BLD)if(ORDER[b.m]===m)b.flash=1;

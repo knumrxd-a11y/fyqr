@@ -1,7 +1,7 @@
 /* ===== intro: the water city floats. layered cut-outs of the artwork drift, sway and breathe; follows your finger/mouse; tap = ripple; start = fly into the river ===== */
 (function(){
-const st=document.createElement('style');st.textContent=`#gal{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .7s ease;pointer-events:none}
-body.gal #gal{opacity:1}body.gal #app{touch-action:pan-y;padding-top:50vh}
+const st=document.createElement('style');st.textContent=`#gal{position:absolute;inset:0;width:100%;height:100%;opacity:0;visibility:hidden;transition:opacity .7s ease,visibility 0s linear .7s;pointer-events:none}
+body.gal #gal{opacity:1;visibility:visible;transition:opacity .7s ease}body.gal #app{touch-action:pan-y;padding-top:50vh}
 body.gal .foot,body.gal .foot button{color:#c9d3d3}`;document.head.appendChild(st);
 const gal=document.createElement('canvas');gal.id='gal';gal.setAttribute('aria-hidden','true');document.querySelector('.stage').appendChild(gal);const g=gal.getContext('2d');
 const LY={"core": ["images/gal-core.webp", [354, 56, 363, 602]], "left": ["images/gal-left.webp", [101, 30, 296, 628]], "right": ["images/gal-right.webp", [674, 141, 187, 517]], "moon": ["images/gal-moon.webp", [489, 122, 83, 84]], "shards": [["images/gal-shard-1.webp", [940, 59, 40, 108]], ["images/gal-shard-2.webp", [581, 80, 27, 63]], ["images/gal-shard-3.webp", [857, 150, 64, 226]], ["images/gal-shard-4.webp", [453, 152, 23, 58]], ["images/gal-shard-5.webp", [854, 382, 36, 85]]]};
@@ -33,7 +33,8 @@ window.galGo=function(cb){if(reduce){cb();return}GL.fly={t0:performance.now(),cb
 window.GL=GL;
 function frame(ms){
   const gal_=document.body.classList.contains('gal');
-  if(!gal_&&!GL.fade){requestAnimationFrame(frame);return}
+  if(!gal_&&!GL.fade){if(gal.width)gal.width=gal.height=0;requestAnimationFrame(frame);return}   // not on the home page: no memory held
+  if(!gal.width)rz();
   if(gal_){GL.fade=1;if(!GL.fly)GL.dark=0}else{GL.fade-=.016;if(GL.fade<0)GL.fade=0}
   const t=ms/1000,dt=Math.min(.05,Math.max(0,(ms-(GL.lt||ms))/1000));GL.lt=ms;const{W,H}=GL;
   let p=0,e=0;

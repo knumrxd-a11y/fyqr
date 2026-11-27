@@ -25,8 +25,15 @@ if(soft||/swiftshader|basic render|llvmpipe|softpipe|software/i.test(name))gpu='
 else if(/nvidia|geforce|quadro|tesla|rtx|gtx|radeon\s*(\(tm\)\s*)?(rx|pro|r9)|firepro|arc\s*(\(tm\)\s*)?a\d/i.test(name))gpu='dgpu';
 else if(/intel|radeon|vega|adreno|mali|powervr|apple|xclipse|immortalis|videocore/i.test(name))gpu='igpu';
 if(/^(soft|igpu|dgpu)$/.test(Q.get('gpu')))gpu=Q.get('gpu');
+/* measuring (only with ?fps=1 or ?perf=1): PT.b() / PT.e(name, t0) add up the CPU time of each drawing layer for the
+   meter; ?off=grain,sun,... leaves those layers out, to measure what each one really costs (CPU + GPU) by the fps */
+const PON=Q.get('fps')==='1'||Q.has('perf'),POFF=new Set(PON?(Q.get('off')||'').split(',').filter(Boolean):[]);
+window.PT={on:PON,acc:{},offs:POFF,off:k=>POFF.has(k),b:()=>PON?performance.now():0,e(k,t0){if(PON)PT.acc[k]=(PT.acc[k]||0)+performance.now()-t0}};
+if(POFF.has('blur')){const st=document.createElement('style');st.textContent='#screen,#snd{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}';document.head.appendChild(st)}
 const CAP=1920*1080;
 window.DEV={gpu,name,cap:gpu!=='dgpu'&&Q.get('quality')!=='high',
+  /* the largest offset <= v (CSS px) that is whole in CSS px and in device px at pixel ratio d (for small layers) */
+  snap(v,d){let k=Math.floor(v);for(let i=0;i<12;i++,k--){const p=k*d;if(Math.abs(p-Math.round(p))<1e-6)return k}return Math.floor(v*d)/d},
   /* pixel ratio for a canvas of w x h CSS pixels that would like `max` */
   dpr(w,h,max){let d=Math.min(max,devicePixelRatio||1);if(DEV.cap&&w>0&&h>0)d=Math.min(d,Math.max(.5,Math.sqrt(CAP/(w*h))));return d}};
 })();

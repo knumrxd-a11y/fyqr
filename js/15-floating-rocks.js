@@ -83,9 +83,9 @@ function layer(front,sec){
 const _cd=cityDraw;
 cityDraw=function(sec){
   const dt=Math.min(.05,Math.max(0,sec-lastT));lastT=sec;stepTint(dt);
-  const n=W>=700?COUNT.pc:COUNT.phone;for(let i=0;i<n;i++)physics(ROCKS[i],dt,W,H);
-  layer(false,sec);
+  const n=W>=700?COUNT.pc:COUNT.phone;let p0=PT.b();for(let i=0;i<n;i++)physics(ROCKS[i],dt,W,H);
+  if(!PT.off('rocks'))layer(false,sec);PT.e('rocks',p0);
   _cd.apply(this,arguments);
-  layer(true,sec);
+  p0=PT.b();if(!PT.off('rocks'))layer(true,sec);PT.e('rocks',p0);
 };
 })();

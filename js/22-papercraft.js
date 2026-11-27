@@ -24,15 +24,17 @@ const BASE=new URL('papercraft/',document.baseURI).href,QS=new URLSearchParams(l
 const idle=(fn,t)=>window.requestIdleCallback?requestIdleCallback(fn,{timeout:t||800}):setTimeout(fn,60);
 
 const css=document.createElement('style');
-css.textContent='#paper{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .5s ease}#paper.on{opacity:1}@media (prefers-reduced-motion:reduce){#paper{transition:none}}';
+css.textContent='#paper{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility 0s linear .5s}#paper.on{opacity:1;visibility:visible;transition:opacity .5s ease}@media (prefers-reduced-motion:reduce){#paper,#paper.on{transition:none}}';
 document.head.appendChild(css);
 const cv=document.createElement('canvas');cv.id='paper';cv.setAttribute('aria-hidden','true');
 document.getElementById('sc').after(cv);
 
 let lib=null,st=null,dead=false,libP=null,cur=null,tok=0,active=null,orient='',prep=null,scDirty=false;
 window.PAPER_ON=false;
-if(QS.get('paper')==='0')dead=true;   // ?paper=0: the site without paper scenes (to compare)
-if(window.DEV&&DEV.gpu==='soft'&&QS.get('paper')!=='1')dead=true;   // drawn in software: far too slow for WebGL scenes
+let why='';   // why the paper scenes are off (shown by the ?fps=1 meter)
+const off=r=>{dead=true;why=why||r};
+if(QS.get('paper')==='0')off('?paper=0');   // ?paper=0: the site without paper scenes (to compare)
+if(window.DEV&&DEV.gpu==='soft'&&QS.get('paper')!=='1')off('software graphics ('+(DEV.name||'?').slice(0,40)+')');   // drawn in software: far too slow for WebGL scenes
 const mods={};
 const landNow=()=>innerWidth>=innerHeight?'land':'port';
 /* a paper page: id, scene file and build context; the key also carries the score for 5.1 / 5.2 */
@@ -42,7 +44,7 @@ function target(stage,si,m){
   return null}
 const want=()=>target(S.stage,S.si,S.alley[S.ai]);
 function loadLib(){
-  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0',adapt:()=>false,dpr:m=>window.DEV?DEV.dpr(innerWidth,innerHeight,m):m})/* paper at full resolution (big screens: the pixel limit) */;if(!st)throw new Error('no WebGL');st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{dead=true;console.warn('papercraft off:',e);throw e});
+  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0',adapt:()=>false,dpr:m=>window.DEV?DEV.dpr(innerWidth,innerHeight,m):m})/* paper at full resolution (big screens: the pixel limit) */;if(!st){off('no WebGL2');throw new Error('no WebGL2')}st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{off('files did not load ('+String(e&&e.message||e).slice(0,40)+')');console.warn('papercraft off:',e);throw e});
   return libP}
 function loadScene(file){return mods[file]||(mods[file]=import(BASE+file).then(m=>m.default))}
 
@@ -160,7 +162,7 @@ addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{
 
 sync();
 if(!active)planNext(false);
-window.__paper={get st(){return st},get active(){return active},get prep(){return prep&&{key:prep.key,ready:!!prep.slot}}};
+window.__paper={get why(){return why},get st(){return st},get active(){return active},get prep(){return prep&&{key:prep.key,ready:!!prep.slot}}};
 
 /* ?fps=1: a small meter in the top-left corner.
    page = frames per second of the whole page (all layers), paper = paper-scene draws per second,
@@ -170,16 +172,22 @@ if(new URLSearchParams(location.search).get('fps')==='1'){
   const box=document.createElement('div');box.id='fpsmeter';
   box.style.cssText='position:fixed;left:6px;top:24px;z-index:50;font:12px/1.35 ui-monospace,Consolas,monospace;color:#e8ffe8;background:rgba(0,0,0,.72);padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre';
   document.body.appendChild(box);
-  let n=0,t0=performance.now(),lo=1e9,lastF=t0,worst=0,p0={renders:0,cpu:0,frames:0};
-  (function tick(now){n++;worst=Math.max(worst,now-lastF);lastF=now;
+  /* refresh rate: the shortest frame gaps are one screen refresh (snapped to the usual rates); kept over 5 s */
+  const RATES=[30,48,50,60,72,75,90,100,120,144,165,180,200,240];let hz=0,gaps=[];
+  let n=0,t0=performance.now(),lastF=t0,worst=0,p0={renders:0,cpu:0,frames:0};
+  (function tick(now){n++;const gp=now-lastF;worst=Math.max(worst,gp);lastF=now;if(gp>2&&gp<60)gaps.push(gp);
     if(now-t0>=1000){const s=(now-t0)/1000,fps=n/s,P=st&&st.perf;
-      let txt='page '+fps.toFixed(0)+' fps  (worst '+worst.toFixed(0)+' ms)';
+      if(gaps.length>8){const g=gaps.slice().sort((a,b)=>a-b),fast=g[Math.floor(g.length*.1)],r=1000/fast;hz=RATES.reduce((a,b)=>Math.abs(b-r)<Math.abs(a-r)?b:a)}
+      if(gaps.length>600)gaps=gaps.slice(-300);
+      let txt='page '+fps.toFixed(0)+' fps  screen '+(hz?hz+' Hz':'?')+'  (worst '+worst.toFixed(0)+' ms)';
       if(P&&active){const r=(P.renders-p0.renders)/s,fr=P.frames-p0.frames,cpu=fr?(P.cpu-p0.cpu)/fr:0;
         txt+='\npaper '+r.toFixed(0)+' /s  cpu '+cpu.toFixed(1)+' ms\ncalls '+P.calls+'  tris '+P.tris+'\ndpr '+st.renderer.getPixelRatio().toFixed(2)+'  build '+Math.round(st.buildMs||0)+' ms\nscene '+active.id;
         p0={renders:P.renders,cpu:P.cpu,frames:P.frames}}
-      else txt+='\npaper: off on this page';
+      else txt+='\npaper: '+(why?'OFF - '+why:'not on this page');
       txt+='\nquality '+(window.QL||0)+(window.QFORCED?' (forced)':' (auto)');
-      if(window.DEV)txt+='\ngpu '+DEV.gpu+(DEV.cap?'  1080p cap':'')+(dead?'  paper off':'');
+      if(window.DEV)txt+='\ngpu '+DEV.gpu+(DEV.cap?'  1080p cap':'');
+      /* CPU ms per frame of each drawing layer (GPU work is not in these numbers: see ?off= in js/00-device.js) */
+      if(window.PT){const a=Object.entries(PT.acc).filter(e=>e[1]/n>=.05).sort((x,y)=>y[1]-x[1]);if(a.length)txt+='\ncpu ms/frame: '+a.map(e=>e[0]+' '+(e[1]/n).toFixed(1)).join('  ');PT.acc={}}
       box.textContent=txt;n=0;t0=now;worst=0}
     requestAnimationFrame(tick)})(performance.now());
 }

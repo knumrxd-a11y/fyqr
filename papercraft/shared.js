@@ -1071,15 +1071,14 @@ export function createStage(canvas, opts = {}) {
   }
   function setDpr(v) { renderer.setPixelRatio(v); st.perf.dpr = v; if (st.free) st.layout(st.free); }
 
-  /* clock: draws only while visible and only when something changed; 60 fps while things move,
-     30 fps on phones and once everything has settled */
+  /* clock: draws only while visible and only when something changed, at the screen's own rate (60, 120 Hz ...):
+     no frame-rate cap (it used to hold 60 fps while moving and 30 fps once settled and on phones) */
   let raf = 0, last = 0;
   const settled = () => st.hinges.every(h => h.settled);
   function frame(ms) {
     raf = 0; if (st.frozen || document.hidden || !st.root) return;
     const quiet = settled() && st.time > st.busyUntil;
-    const fps = (mobile || quiet) ? 30 : 60;
-    if (last && ms - last < 1000 / fps - 2) { raf = requestAnimationFrame(frame); return; }
+    const fps = 60;   // the adaptive-resolution target (gallery only; the site turns it off)
     const dt = last ? Math.min(.05, Math.max(0, (ms - last) / 1000)) : 0; last = ms;
     const c0 = performance.now();
     step(dt);

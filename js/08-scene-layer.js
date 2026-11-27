@@ -1,5 +1,5 @@
 /* ===== scene layer: one illustrated vignette per storyboard panel, plus an action when you pick ===== */
-const sc=document.getElementById('sc');let sx=sc.getContext('2d');
+const sc=document.getElementById('sc');let sx=sc.getContext('2d');if(PT.off('sc'))sc.style.display='none';
 const SCN={k:'',p:'',f:1,dn:0,am:null,at:0,al:1,tc:[20,50,58]};
 const TINT={v1:'#1c4a52',v2:'#1a4458',v3:'#1c4a52',v4:'#2a4a48',v5:'#1a5a5a',v6:'#2a4a58',v7:'#3a3a58',v8:'#4a4a30',v10:'#4a4a30',v11:'#2a3a6a',v12:'#3a3a58',v13:'#5a4a28',v14:'#5a4a28',v15:'#2a4a58',v16:'#3a2a5a'};
 const FOC={v1:40,v2:50,v3:50,v4:55,v5:50,v6:60,v7:58,v8:40,v10:55,v11:44,v12:52,v13:50,v14:48,v15:52,v16:40};
@@ -129,13 +129,19 @@ function drawScene(ms){
   const k=sceneKey();if(k!==SCN.k){SCN.p=SCN.k;SCN.k=k;SCN.f=reduce?1:0;SCN.dn=0;SCN.am=null}
   SCN.f=Math.min(1,SCN.f+dt/.8);const ap=SCN.am?Math.min(1,(performance.now()-SCN.at)/1500):0;
   SCN.dn+=((SCN.am?1:0)-SCN.dn)*(reduce?1:1-Math.exp(-dt*2.5));SAT=Math.min(1,.2+prog()*.7+SCN.dn*.3);
+  const tg=hx(k[0]==='a'?dk(MJ[k.slice(1)].c,.55):(TINT[k]||'#1c4a52')),a=reduce?1:1-Math.exp(-dt*3);SCN.tc=SCN.tc.map((v,i)=>v+(tg[i]-v)*a);
+  const q=SCN.tc.map(Math.round).join(',');
+  /* every vignette but 1.2's items is switched off (js/11), so elsewhere this canvas holds only the tint gradient:
+     when its colour (rounded, as drawn) and the canvas size are unchanged, the canvas already shows this frame */
+  const only=k!=='v4'&&!(SCN.p==='v4'&&SCN.f<1);
+  if(only&&q===SCN.lq&&sc.width===SCN.lw&&sc.height===SCN.lh)return;
+  SCN.lq=only?q:'';SCN.lw=sc.width;SCN.lh=sc.height;
   sx.clearRect(0,0,SW,SH);sx.globalCompositeOperation='source-over';
   const paint=(key,al)=>{SCN.al=al;sx.save();sx.globalAlpha=al;sx.translate(SW/2,SY);sx.scale(SS,SS);if(key==='v4'&&window.v4Zoom)v4Zoom();key[0]==='a'?alleyD(key.slice(1),t):V[key](t);sx.restore()};
   if(SCN.p&&SCN.f<1)paint(SCN.p,1-SCN.f);paint(k,SCN.f);
   if(SCN.am&&ap<1&&!reduce){sx.save();sx.translate(SW/2,SY);sx.scale(SS,SS);drawAct(SCN.am,ap,0,FOC[k]||50);sx.restore()}
   sx.globalCompositeOperation='destination-in';const mg=sx.createLinearGradient(0,SY+64*SS,0,SY+106*SS);mg.addColorStop(0,'#000');mg.addColorStop(1,'rgba(0,0,0,0)');sx.fillStyle=mg;sx.fillRect(0,0,SW,SH);
-  const tg=hx(k[0]==='a'?dk(MJ[k.slice(1)].c,.55):(TINT[k]||'#1c4a52')),a=reduce?1:1-Math.exp(-dt*3);SCN.tc=SCN.tc.map((v,i)=>v+(tg[i]-v)*a);
-  sx.globalCompositeOperation='destination-over';const q=SCN.tc.map(Math.round).join(','),g2=sx.createLinearGradient(0,0,0,SH);
+  sx.globalCompositeOperation='destination-over';const g2=sx.createLinearGradient(0,0,0,SH);
   g2.addColorStop(0,'rgba('+q+',.45)');g2.addColorStop(.6,'rgba('+q+',.18)');g2.addColorStop(1,'rgba('+q+',.1)');sx.fillStyle=g2;sx.fillRect(0,0,SW,SH);sx.globalCompositeOperation='source-over'}
-function loop2(t){drawScene(t);requestAnimationFrame(loop2)}
+function loop2(t){const p0=PT.b();if(!PT.off('sc'))drawScene(t);PT.e('sc',p0);requestAnimationFrame(loop2)}
 rsc();requestAnimationFrame(loop2);

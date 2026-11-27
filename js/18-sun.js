@@ -27,8 +27,8 @@ function put(g,x,y,d,a){const[sx,sy]=frame();g.save();g.globalCompositeOperation
   if(best)best.sun=true})();
 /* story pages: fixed in the middle of the sky, on its own top layer so nothing in the backdrop covers it.
    The layer uses screen blending, so the black of the sheet disappears against the sky. */
-const ss=document.createElement('style');ss.textContent='#suncv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen}body.gal #suncv{display:none}';document.head.appendChild(ss);
-const top=document.createElement('canvas');top.id='suncv';top.setAttribute('aria-hidden','true');
+const ss=document.createElement('style');ss.textContent='#suncv{position:absolute;left:0;top:0;pointer-events:none;mix-blend-mode:screen;transform-origin:0 0}body.gal #suncv{display:none}';document.head.appendChild(ss);
+const top=document.createElement('canvas');top.id='suncv';if(PT.off('sun'))top.style.display='none';top.setAttribute('aria-hidden','true');
 const tg=top.getContext('2d');let drew=0;
 /* the item page (scene 1.2) is the one page where the sun sits behind the floating items */
 function place(){const st=document.querySelector('.stage');if(!st)return;
@@ -36,14 +36,16 @@ function place(){const st=document.querySelector('.stage');if(!st)return;
   if(behind){if(top.nextSibling!==sc)st.insertBefore(top,sc)}else if(st.lastElementChild!==top)st.appendChild(top)}
 const _cd=cityDraw;
 cityDraw=function(sec){
-  const r=_cd.apply(this,arguments);
-  if(ok&&typeof sc!=='undefined'){place();const tr=top.getBoundingClientRect(),dp=DEV.dpr(tr.width,tr.height,2),sr=sc.getBoundingClientRect(),
-      w=Math.round(tr.width*dp),h=Math.round(tr.height*dp);
-    if(top.width!==w||top.height!==h){top.width=w;top.height=h}
-    const x=sr.left-tr.left+SW/2,y=sr.top-tr.top+SY+50*SS,d=STORY*SS*(1+.015*Math.sin(sec*1.1));
-    tg.setTransform(1,0,0,1,0,0);tg.fillStyle='#000';tg.fillRect(0,0,w,h);
-    tg.setTransform(dp,0,0,dp,0,0);put(tg,x,y,d,1);drew=performance.now()}
-  return r};
+  const r=_cd.apply(this,arguments),p0=PT.b();
+  if(ok&&typeof sc!=='undefined'&&!PT.off('sun')){place();const tr=top.parentNode.getBoundingClientRect(),dp=DEV.dpr(tr.width,tr.height,2),sr=sc.getBoundingClientRect(),
+      x=sr.left-tr.left+SW/2,y=sr.top-tr.top+SY+50*SS,d=STORY*SS*(1+.015*Math.sin(sec*1.1)),
+      /* a square of whole device pixels round the largest the sun gets, at the same pixel grid as the full screen */
+      side=Math.ceil(STORY*SS*1.02*dp)+12,bx=Math.round(DEV.snap(x-side/2/dp,dp)*dp),by=Math.round(DEV.snap(y-side/2/dp,dp)*dp);
+    if(top.width!==side||top.height!==side||top._dp!==dp){top.width=top.height=side;top._dp=dp;top.style.width=top.style.height=(side/dp)+'px'}
+    top.style.transform='translate('+(bx/dp)+'px,'+(by/dp)+'px)';
+    tg.setTransform(1,0,0,1,0,0);tg.fillStyle='#000';tg.fillRect(0,0,side,side);
+    tg.setTransform(dp,0,0,dp,-bx,-by);put(tg,x,y,d,1);drew=performance.now()}
+  PT.e('sun',p0);return r};
 /* clear the layer when the story city is not being drawn (home page, between screens) */
 (function idle(){if(performance.now()-drew>300&&top.width){top.width=0}requestAnimationFrame(idle)})();
 return{
