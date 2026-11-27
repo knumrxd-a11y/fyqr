@@ -90,4 +90,24 @@ addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{
 sync();
 if(S.stage==='scene'&&S.si>=1)loadLib().then(prefetch).catch(()=>{});
 window.__paper={get st(){return st},get active(){return active}};
+
+/* ?fps=1: a small meter in the top-left corner.
+   page = frames per second of the whole page (all layers), paper = paper-scene draws per second,
+   cpu = ms of JS per paper frame (step + draw call submission), calls = draw calls of the last paper frame,
+   dpr = paper pixel ratio, build = ms to build the current paper scene. */
+if(new URLSearchParams(location.search).get('fps')==='1'){
+  const box=document.createElement('div');box.id='fpsmeter';
+  box.style.cssText='position:fixed;left:6px;top:24px;z-index:50;font:12px/1.35 ui-monospace,Consolas,monospace;color:#e8ffe8;background:rgba(0,0,0,.72);padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre';
+  document.body.appendChild(box);
+  let n=0,t0=performance.now(),lo=1e9,lastF=t0,worst=0,p0={renders:0,cpu:0,frames:0};
+  (function tick(now){n++;worst=Math.max(worst,now-lastF);lastF=now;
+    if(now-t0>=1000){const s=(now-t0)/1000,fps=n/s,P=st&&st.perf;
+      let txt='page '+fps.toFixed(0)+' fps  (worst '+worst.toFixed(0)+' ms)';
+      if(P&&active){const r=(P.renders-p0.renders)/s,fr=P.frames-p0.frames,cpu=fr?(P.cpu-p0.cpu)/fr:0;
+        txt+='\npaper '+r.toFixed(0)+' /s  cpu '+cpu.toFixed(1)+' ms\ncalls '+P.calls+'  tris '+P.tris+'\ndpr '+st.renderer.getPixelRatio().toFixed(2)+'  build '+Math.round(st.buildMs||0)+' ms\nscene '+active.id;
+        p0={renders:P.renders,cpu:P.cpu,frames:P.frames}}
+      else txt+='\npaper: off on this page';
+      box.textContent=txt;n=0;t0=now;worst=0}
+    requestAnimationFrame(tick)})(performance.now());
+}
 })();

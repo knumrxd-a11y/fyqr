@@ -685,7 +685,9 @@ export function createStage(canvas) {
     const isl = st.hinges.find(x => x.island); st.openness = isl ? Math.max(0, Math.min(1, isl.x)) : 1;
     st.updaters.forEach(fn => fn(st.time, dt));
   }
-  function render() { renderer.render(scene, camera); }
+  /* perf counters (read by the ?fps=1 meter on the site): renders, CPU ms of step + render, draw calls of the last frame */
+  st.perf = { renders: 0, cpu: 0, frames: 0, calls: 0, tris: 0 };
+  function render() { renderer.render(scene, camera); st.perf.renders++; st.perf.calls = renderer.info.render.calls; st.perf.tris = renderer.info.render.triangles; }
   st.render = render;
 
   /* clock: draws only while visible; 30 fps on phones and once everything has settled */
@@ -696,7 +698,7 @@ export function createStage(canvas) {
     const fps = (mobile || (settled() && st.time > st.busyUntil)) ? 30 : 60;
     if (last && ms - last < 1000 / fps - 2) { raf = requestAnimationFrame(frame); return; }
     const dt = last ? Math.min(.05, Math.max(0, (ms - last) / 1000)) : 0; last = ms;
-    step(dt); render();
+    const c0 = performance.now(); step(dt); render(); st.perf.cpu += performance.now() - c0; st.perf.frames++;
     if (st.reduce && settled() && st.time > st.busyUntil) return; // nothing moves: stop drawing
     raf = requestAnimationFrame(frame);
   }
