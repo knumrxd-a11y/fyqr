@@ -255,3 +255,18 @@ DGA ภาพวาดยักษ์คลี่ลงมาจากด้า�
 - **Framing:** the main page box (`st._page`) plus the tallest piece (`st.content`) fit the band from
   `free.top` to `free.bottom`. The island's front edge stays above the text box and the top stays below the progress bar.
 - three.js: `vendor/three.min.js` (esbuild, 731 KB, gzip 184 KB; was 2.1 MB, gzip 409 KB).
+
+## Automatic quality (js/23-quality.js, branch try-web)
+
+- Every device starts at full quality, the same as the original site. The earlier "paper is up" shortcuts are gone:
+  - grain, floating rocks and the 30 fps background all draw at full quality now.
+  - #sc still skips repainting a frame that hasn't changed (invisible).
+- Steps, taken one at a time and only after more than 2 s under 45 fps (one-off hitches don't count):
+  1. still grain layer (CSS overlay)
+  2. pre-drawn nebula and cloud glows
+  3. background at 30 fps
+  4. background at 1x
+- Never touched: colours, aurora, guiding star, city, paper scene, text, glass box. The paper scene's own pixel-ratio
+  adaptation is switched off on the site, because 0.75 blurred it visibly on phones. It was tried and reverted.
+- `?quality=high` / `?quality=low` (= step 4) / `?quality=0..4` force a level. The `?fps=1` meter shows the level.
+- Measured with the CPU throttled 4x on 2.1: 21 fps at full quality, 30 at step 2, 49 at step 4.

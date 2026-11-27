@@ -82,7 +82,6 @@ function layer(front,sec){
 }
 const _cd=cityDraw;
 cityDraw=function(sec){
-  if(window.PAPER_ON){lastT=sec;return _cd.apply(this,arguments)}   // a paper scene (js/22) covers them: skip
   const dt=Math.min(.05,Math.max(0,sec-lastT));lastT=sec;stepTint(dt);
   const n=W>=700?COUNT.pc:COUNT.phone;for(let i=0;i<n;i++)physics(ROCKS[i],dt,W,H);
   layer(false,sec);

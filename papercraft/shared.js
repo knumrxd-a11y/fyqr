@@ -1035,9 +1035,12 @@ export function createStage(canvas, opts = {}) {
   st.render = draw;
 
   /* adaptive resolution: if the frame rate stays under 45 (30-fps mode: under 26), lower the pixel ratio
-     step by step down to 0.75; raise it again slowly when there is headroom */
+     step by step down to 0.75; raise it again slowly when there is headroom. opts.adapt() / opts.lowest() gate it. */
   let aT = 0, aTicks = 0, aCool = 0, aGood = 0;
   function adapt(ms, target) {
+    // the site's quality system (js/23) decides when the paper scene may lower its resolution (last step only)
+    if (opts.lowest && opts.lowest()) { if (renderer.getPixelRatio() !== dprMin) setDpr(dprMin); return; }
+    if (opts.adapt && !opts.adapt()) { if (renderer.getPixelRatio() !== dprMax) setDpr(dprMax); aT = 0; return; }
     if (!aT) { aT = ms; aTicks = 0; return; }
     aTicks++;
     if (ms - aT < 1000) return;

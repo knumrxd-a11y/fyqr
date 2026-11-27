@@ -8,8 +8,8 @@
      1.5 s trip to the next page); an alley is built for the most likely major and rebuilt if the answer changes it.
      If a page opens before its scene is ready, the old picture shows until it is, then the paper scene fades in.
    - On those pages the old 2D vignette (V.v5/v6/v8/v13/v14) is not drawn; on 2.3 the shop pictures (js/20) stay hidden.
-   - While a paper scene is up (window.PAPER_ON), what sits behind it and is barely seen is paused or slowed:
-     #sc is not redrawn, the floating rocks (js/15) and the film grain (js/04) are skipped, the sky/city runs at 30 fps.
+   - While a paper scene is up (window.PAPER_ON), #sc is not repainted once its picture is still (nothing changes there).
+     Everything else is drawn at full quality; js/23-quality.js lowers quality step by step only on slow devices.
    - Picking an answer: doAct(m) also plays the scene's reaction (in an alley: the option chosen, from S.alleyPick).
    - Fallback: no WebGL, or the files fail to load -> nothing changes, the old pictures show as before.
    URL: ?fps=1 shows a frame-rate meter, ?batch=0 turns off the draw-call merging, ?paper=0 turns paper scenes off.
@@ -37,7 +37,7 @@ function target(stage,si,m){
   return null}
 const want=()=>target(S.stage,S.si,S.alley[S.ai]);
 function loadLib(){
-  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0'});if(!st)throw new Error('no WebGL');st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{dead=true;console.warn('papercraft off:',e);throw e});
+  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0',adapt:()=>false})/* paper always at full resolution */;if(!st)throw new Error('no WebGL');st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{dead=true;console.warn('papercraft off:',e);throw e});
   return libP}
 function loadScene(file){return mods[file]||(mods[file]=import(BASE+file).then(m=>m.default))}
 
@@ -118,8 +118,6 @@ const _ds=window.drawScene;
 window.drawScene=function(ms){
   if(window.PAPER_ON&&!scDirty&&SCN.f>=1&&SCN.k===sceneKey()&&!SCN.am)return;
   const r=_ds.apply(this,arguments);if(SCN.f>=1)scDirty=false;return r};
-const _dr=window.draw;let odd=0;
-window.draw=function(t){if(window.PAPER_ON&&(odd^=1))return;return _dr.apply(this,arguments)};   // 30 fps behind the paper
 
 const _render=window.render;
 window.render=function(){_render.apply(this,arguments);shop();sync()};
@@ -165,6 +163,7 @@ if(new URLSearchParams(location.search).get('fps')==='1'){
         txt+='\npaper '+r.toFixed(0)+' /s  cpu '+cpu.toFixed(1)+' ms\ncalls '+P.calls+'  tris '+P.tris+'\ndpr '+st.renderer.getPixelRatio().toFixed(2)+'  build '+Math.round(st.buildMs||0)+' ms\nscene '+active.id;
         p0={renders:P.renders,cpu:P.cpu,frames:P.frames}}
       else txt+='\npaper: off on this page';
+      txt+='\nquality '+(window.QL||0)+(window.QFORCED?' (forced)':' (auto)');
       box.textContent=txt;n=0;t0=now;worst=0}
     requestAnimationFrame(tick)})(performance.now());
 }
