@@ -4,7 +4,7 @@
    (the card's cut sides sample an ink swatch in its own print). Shadows are baked blurred silhouettes
    lying on the page; depth of field is baked blur in the prints of far / near pieces.
    There is NO hero: the guide light (#FFF1B0) stands in for the player in every scene. */
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.min.js';   // vendor/three.module.js + three.core.js (r187) minified with esbuild
 export { THREE };
 
 /* ---------- palette (SPEC.md section 3) ---------- */
@@ -134,9 +134,11 @@ function canvasTex(cv, st) {
    outline in units (y up, base y=0), paint(P) prints the collage on top of the base sheet.
    holes: list of outlines cut out (doors, arches). key: cache the print + geometry for identical pieces.
    Returns { mesh, outline, P, tex, mat, reprint(paint) }. */
+const EMPTY_GEO = new THREE.BufferGeometry();
+EMPTY_GEO.userData.keep = true;
 export function card(st, o) {
   const { outline, paint, base = PAL.light, ppu = 48, th = .07, seed = 1, blur = 0, edge = PAL.edge, rim = true, fibre = 1, holes = null, key = null, unlit = false, emit = 0 } = o;
-  if (key && st._cache.has(key)) { const c = st._cache.get(key); return { ...c, mesh: new THREE.Mesh(c.mesh.geometry, c.mat), shared: true }; }
+  if (key && st._cache.has(key)) { const c = st._cache.get(key), m2 = new THREE.Mesh(c.mesh.geometry, c.mat); c.meshes.push(m2); return { ...c, mesh: m2, shared: true }; }
   const P = printer(outline, ppu, st.L, seed);
   const holePaths = holes ? holes.map(h => P.poly(h)) : [];
   let baseCol = base;
@@ -152,23 +154,30 @@ export function card(st, o) {
     bakeBlur(P.canvas, blur);
     g.fillStyle = edge; g.fillRect(0, 0, PAD, PAD);               // ink swatch the cut sides sample
   };
-  draw(paint);
   const tex = canvasTex(P.canvas, st);
-  const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
-  if (holes) holes.forEach(h => shape.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y)))));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: th, bevelEnabled: false, curveSegments: 4 });
-  geo.translate(0, 0, -th / 2);
-  const pos = geo.attributes.position, uv = geo.attributes.uv, nrm = geo.attributes.normal;
-  const su = (PAD / 2) / P.W, sv = 1 - (PAD / 2) / P.H;
-  for (let i = 0; i < pos.count; i++) {
-    if (Math.abs(nrm.getZ(i)) > .5) uv.setXY(i, P.X(pos.getX(i)) / P.W, 1 - P.Y(pos.getY(i)) / P.H);
-    else uv.setXY(i, su, sv);
-  }
-  geo.clearGroups();
+  let painted = false;
+  const doPaint = () => { if (painted) return; painted = true; draw(paint); tex.needsUpdate = true; };
+  if (st._jobs) st._jobs.push(doPaint); else doPaint();   // preparing: painting happens later, in idle-time slices
+  const makeGeo = () => {
+    const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
+    if (holes) holes.forEach(h => shape.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y)))));
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: th, bevelEnabled: false, curveSegments: 4 });
+    geo.translate(0, 0, -th / 2);
+    const pos = geo.attributes.position, uv = geo.attributes.uv, nrm = geo.attributes.normal;
+    const su = (PAD / 2) / P.W, sv = 1 - (PAD / 2) / P.H;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(nrm.getZ(i)) > .5) uv.setXY(i, P.X(pos.getX(i)) / P.W, 1 - P.Y(pos.getY(i)) / P.H);
+      else uv.setXY(i, su, sv);
+    }
+    geo.clearGroups();
+    return geo;
+  };
   const mat = unlit ? new THREE.MeshBasicMaterial({ map: tex }) : new THREE.MeshLambertMaterial({ map: tex });
   if (emit && !unlit) { mat.emissive = new THREE.Color(1, 1, 1).multiplyScalar(emit); mat.emissiveMap = tex; }   // festive paper that reads at night
-  const mesh = new THREE.Mesh(geo, mat);
-  const c = { mesh, outline, P, tex, mat, reprint(pnt, nb) { if (nb) baseCol = nb; draw(pnt); tex.needsUpdate = true; } };
+  // preparing: the extruded sheet is cut later too (meshes start on an empty geometry; nothing is drawn before it is done)
+  const mesh = new THREE.Mesh(st._jobs ? EMPTY_GEO : makeGeo(), mat), meshes = [mesh];
+  if (st._jobs) st._jobs.push(() => { const g = makeGeo(); meshes.forEach(m => { m.geometry = g; }); });
+  const c = { mesh, meshes, outline, P, tex, mat, reprint(pnt, nb) { painted = true; if (nb) baseCol = nb; draw(pnt); tex.needsUpdate = true; } };
   if (key) st._cache.set(key, c);
   return c;
 }
@@ -213,11 +222,15 @@ export function groundShadow(st, outline, { away = [0, -1], len = .8, opacity = 
   const bb = bbox(outline), grp = new THREE.Group();
   const W = 48, H = 72, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const sx = W / (bb.w * 1.3), x0 = (W - bb.w * sx) / 2;
-  g.fillStyle = 'rgb(26,20,56)'; g.beginPath();
-  outline.forEach(([x, y], i) => { const px = x0 + (x - bb.x0) * sx, py = H - 4 - (Math.max(0, y) / Math.max(.01, bb.y1)) * (H - 8); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.fill();
-  bakeBlur(c, 3); bakeBlur(c, 2.5);
-  g.globalCompositeOperation = 'destination-in'; const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
   const tex = canvasTex(c, st);
+  const paintShadow = () => {
+    g.fillStyle = 'rgb(26,20,56)'; g.beginPath();
+    outline.forEach(([x, y], i) => { const px = x0 + (x - bb.x0) * sx, py = H - 4 - (Math.max(0, y) / Math.max(.01, bb.y1)) * (H - 8); i ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.fill();
+    bakeBlur(c, 3); bakeBlur(c, 2.5);
+    g.globalCompositeOperation = 'destination-in'; const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    tex.needsUpdate = true;
+  };
+  if (st._jobs) st._jobs.push(paintShadow); else paintShadow();
   const w = bb.w * 1.3, cx = (bb.x0 + bb.x1) / 2;
   const geo = new THREE.PlaneGeometry(w, 1); geo.rotateX(-Math.PI / 2); geo.translate(cx, .012, -.5);
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false });
@@ -258,9 +271,10 @@ export function stand(st, parent, { x = 0, y = 0, z = 0, yaw = 0, cards = [], sh
 
 /** floating page / island: a thick board with a torn edge, printed on top. Opens like a book page
     (hinged at its front edge, swings down from edge-on to the camera). outline: custom plan in (x, -z). */
-export function island(st, parent, { rx = 9, rz = 6, outline = null, seed = 3, paint, ppu = 24, th = .3, blurFar = .3, blurNear = .8, blurPx = 4 }) {
+export function island(st, parent, { rx = 9, rz = 6, outline = null, seed = 3, paint, ppu = 24, th = .3, blurFar = .3, blurNear = .8, blurPx = 4, side = false }) {
   const out = outline || torn(0, 0, rx, rz, seed);
   const bb = bbox(out);
+  if (!side && !st._page) st._page = { min: [bb.x0, -th * 2.2, -bb.y1], max: [bb.x1, 0, -bb.y0] };   // world box of the main page (open pose)
   const c = card(st, {
     outline: out, base: PAL.ground, ppu, th, seed, fibre: 1.2, edge: '#231d36',
     paint: P => {
@@ -277,7 +291,7 @@ export function island(st, parent, { rx = 9, rz = 6, outline = null, seed = 3, p
   const front = -bb.y0;   // world z of the front edge
   const pivot = new THREE.Group(); pivot.position.set(0, 0, front); parent.add(pivot);
   const inner = new THREE.Group(); inner.position.z = -front; pivot.add(inner); inner.add(c.mesh);
-  const under = new THREE.Mesh(c.mesh.geometry, new THREE.MeshLambertMaterial({ color: '#211b33' }));
+  const under = new THREE.Mesh(c.mesh.geometry, new THREE.MeshLambertMaterial({ color: '#211b33' })); c.meshes.push(under);
   under.rotation.x = -Math.PI / 2; under.position.set(.15, -th * 1.6 - .06, .12); under.scale.set(1.012, 1.018, 1); inner.add(under);
   const h = st.hinge(pivot, { axis: 'x', flat: Math.PI - st.pitch, up: 0, order: -1 });
   h.island = true;
@@ -287,8 +301,8 @@ export function island(st, parent, { rx = 9, rz = 6, outline = null, seed = 3, p
 /** landscape only: a smaller floating page beside the text box (left or right), lower and nearer than the
     main page, with its own soft warm lamp so it is not left in the dark. Returns the island + its group. */
 export function sidePage(st, root, { x = -19, y = -4, z = 10, rx = 6, rz = 5, seed = 31, paint, lamp = 5, yaw = 0 }) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; root.add(g);
-  const isl = island(st, g, { rx, rz, seed, paint, ppu: 26, blurFar: .2, blurNear: .9, blurPx: 3 });
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; g.userData.sidePage = true; root.add(g);
+  const isl = island(st, g, { rx, rz, seed, paint, ppu: 26, blurFar: .2, blurNear: .9, blurPx: 3, side: true });
   isl.boost = 1;
   if (lamp) { const l = new THREE.PointLight(PAL.guide, 0, 0, 1); l.position.set(0, 5, 2); g.add(l); isl.lamp = l; st.onUpdate((t, dt) => { isl.k = (isl.k ?? 1) + (isl.boost - (isl.k ?? 1)) * Math.min(1, dt * 3); l.intensity = lamp * st.openness * isl.k; }); }
   isl.group = g;
@@ -560,20 +574,230 @@ export function removePiece(st, s) {
 /** fade a group toward grey ("other lanes dim"): multiplies material colour, k 1 = normal, ~.5 = dim */
 export function dimGroup(group, k) { group.traverse(n => { if (n.isMesh && n.material && n.material.color && n.material.blending !== THREE.AdditiveBlending && !n.material.isMeshBasicMaterial) n.material.color.setScalar(k); }); }
 
+/* ---------- batching: plain cards are drawn through a few BatchedMeshes ----------
+   Every card print goes into texture atlas pages; cards that share a kind (lit / unlit / ground shadow) and a page
+   are drawn in ONE draw call. The original meshes stay in the scene graph (on layer 1, so the camera skips them) and
+   keep driving everything: each frame their world matrix, colour, opacity and visibility are copied to their
+   instance. A card whose material is changed in a way an instance cannot follow (new texture, emissive, opacity on
+   an opaque card...) is handed back to normal drawing ("ejected"). A reprinted card is re-copied into its atlas page;
+   a card reprinted very often is ejected too. */
+const ATLAS_G = 4;                         // gutter around each print (mip-map bleed)
+const HIDDEN_LAYER = 1;
+const kindOf = (n) => {
+  if (!n.isMesh || n.isBatchedMesh || n.isInstancedMesh || n.isSkinnedMesh) return null;
+  const m = n.material, g = n.geometry;
+  if (!m || Array.isArray(m) || !g || !g.attributes.position || !g.attributes.uv || !g.attributes.normal) return null;
+  if (g.morphAttributes && Object.keys(g.morphAttributes).length) return null;
+  if (n.layers.mask !== 1 || Object.prototype.hasOwnProperty.call(n, 'onBeforeRender')) return null;
+  if (Object.prototype.hasOwnProperty.call(m, 'onBeforeCompile') || m.alphaMap || m.envMap || m.lightMap || m.aoMap || m.vertexColors || m.polygonOffset || m.side === THREE.BackSide) return null;
+  if (m.blending !== THREE.NormalBlending || !m.depthTest) return null;
+  const t = m.map;
+  if (t && (!(t.image && t.image.getContext) || t.repeat.x !== 1 || t.repeat.y !== 1 || t.offset.x || t.offset.y || t.rotation || !t.flipY)) return null;
+  if (m.isMeshLambertMaterial && !m.transparent && m.opacity === 1 && m.depthWrite) {
+    const e = m.emissive;
+    if (m.emissiveMap ? (m.emissiveMap !== t || e.r !== e.g || e.g !== e.b) : (e.r || e.g || e.b)) return null;
+    return m.side === THREE.DoubleSide ? 'litD' : 'lit';
+  }
+  if (m.isMeshBasicMaterial && !m.transparent && m.opacity === 1 && m.depthWrite) return m.side === THREE.DoubleSide ? 'unlitD' : 'unlit';
+  if (m.isMeshBasicMaterial && m.transparent && !m.depthWrite && (n.renderOrder === 1 || n.renderOrder === 2) && m.side === THREE.FrontSide) return 'shade';
+  return null;
+};
+const matSig = m => [m.map, m.emissiveMap, m.emissive ? m.emissive.r + m.emissive.g * 2 + m.emissive.b * 3 : 0, m.transparent, m.transparent ? 0 : m.opacity, m.side, m.depthWrite, m.blending];
+const sameSig = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; };
+
+class Batcher {
+  constructor(st, root) {
+    this.st = st; this.root = root; this.items = []; this.regions = []; this.pages = []; this.batches = [];
+    this.group = new THREE.Group(); this.group.name = 'paper-batches'; this.ejected = 0; this.size = 2048;
+  }
+  /** returns a list of small tasks (run them in order, any number per frame) */
+  plan() {
+    const st = this.st, S = this.size = Math.min(2048, st.renderer.capabilities.maxTextureSize || 2048);
+    const byTex = new Map(); let white = null;
+    this.root.traverse(n => {
+      const kind = kindOf(n); if (!kind) return;
+      const m = n.material, t = m.map;
+      let reg = t ? byTex.get(t) : white;
+      if (!reg) {
+        reg = t ? { tex: t, w: t.image.width, h: t.image.height, emit: 0 } : { white: true, w: 8, h: 8, emit: 0 };
+        if (reg.w + 2 * ATLAS_G > S || reg.h + 2 * ATLAS_G > S) reg.bad = true;
+        reg.id = this.regions.length; this.regions.push(reg);
+        if (t) byTex.set(t, reg); else white = reg;
+      }
+      if (reg.bad) return;
+      if (m.emissiveMap) reg.emit = Math.max(reg.emit, m.emissive.r);
+      this.items.push({ mesh: n, mat: m, kind, reg, sig: matSig(m), dead: false, vis: null, m: new Float32Array(16).fill(NaN), c: [NaN, NaN, NaN, NaN] });
+    });
+    // shelf packing, tallest first
+    const regs = this.regions.filter(r => !r.bad).sort((a, b) => b.h - a.h);
+    let page = null, x = 0, y = 0, shelf = 0;
+    const newPage = () => { page = { regs: [], emit: false }; this.pages.push(page); x = 0; y = 0; shelf = 0; };
+    newPage();
+    regs.forEach(r => {
+      const w = r.w + 2 * ATLAS_G, h = r.h + 2 * ATLAS_G;
+      if (x + w > S) { x = 0; y += shelf; shelf = 0; }
+      if (y + h > S) newPage();
+      r.page = page; r.x = x + ATLAS_G; r.y = y + ATLAS_G; page.regs.push(r); if (r.emit) page.emit = true;
+      x += w; shelf = Math.max(shelf, h);
+    });
+    const tasks = [];
+    this.pages.forEach(pg => {
+      tasks.push(() => {
+        pg.cv = document.createElement('canvas'); pg.cv.width = pg.cv.height = S; pg.g = pg.cv.getContext('2d');
+        if (pg.emit) { pg.ecv = document.createElement('canvas'); pg.ecv.width = pg.ecv.height = S; pg.eg = pg.ecv.getContext('2d'); pg.eg.fillStyle = '#000'; pg.eg.fillRect(0, 0, S, S); }
+      });
+      for (let i = 0; i < pg.regs.length; i += 16) { const part = pg.regs.slice(i, i + 16); tasks.push(() => part.forEach(r => this.blit(r))); }
+      tasks.push(() => {
+        const mk = cv => { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(4, st.renderer.capabilities.getMaxAnisotropy()); return t; };
+        pg.tex = mk(pg.cv); if (pg.emit) pg.etex = mk(pg.ecv);
+      });
+    });
+    // one BatchedMesh per (kind, page)
+    const groups = new Map();
+    this.items.forEach(it => { const k = it.kind + '|' + this.pages.indexOf(it.reg.page); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
+    groups.forEach((list, k) => tasks.push(() => this.makeBatch(list, k.split('|')[0], list[0].reg.page)));
+    return tasks;
+  }
+  blit(r) {
+    const pg = r.page, g = pg.g, G = ATLAS_G;
+    if (r.white) { g.fillStyle = '#fff'; g.fillRect(r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G); r.ver = 0; return; }
+    const img = r.tex.image;
+    g.clearRect(r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G);
+    g.drawImage(img, r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G); g.drawImage(img, r.x, r.y);
+    if (pg.eg) {
+      const e = pg.eg; e.globalCompositeOperation = 'source-over'; e.fillStyle = '#000'; e.fillRect(r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G);
+      if (r.emit) { e.drawImage(img, r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G); e.drawImage(img, r.x, r.y); e.fillStyle = 'rgba(0,0,0,' + (1 - Math.pow(Math.min(1, r.emit), 1 / 2.2)) + ')'; /* strength is linear light, the canvas is sRGB */ e.fillRect(r.x - G, r.y - G, r.w + 2 * G, r.h + 2 * G); }
+    }
+    r.ver = r.tex.version;
+  }
+  geomFor(g, r, cache) {
+    const key = g.uuid + '|' + r.id; if (cache.has(key)) return cache.get(key);
+    const src = g.index ? g.toNonIndexed() : g, n = src.attributes.position.count, S = this.size;
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', src.attributes.position.clone()); out.setAttribute('normal', src.attributes.normal.clone());
+    const uv = src.attributes.uv, a = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      if (r.white) { a[i * 2] = (r.x + 4) / S; a[i * 2 + 1] = 1 - (r.y + 4) / S; continue; }
+      a[i * 2] = (r.x + uv.getX(i) * r.w) / S; a[i * 2 + 1] = 1 - (r.y + (1 - uv.getY(i)) * r.h) / S;
+    }
+    out.setAttribute('uv', new THREE.BufferAttribute(a, 2));
+    if (src !== g) src.dispose();
+    cache.set(key, out); return out;
+  }
+  makeBatch(list, kind, pg) {
+    const cache = new Map(); let verts = 0;
+    list.forEach(it => { const gg = this.geomFor(it.mesh.geometry, it.reg, cache); if (!gg.userData.counted) { gg.userData.counted = true; verts += gg.attributes.position.count; } it.geo = gg; });
+    let mat;
+    const side = kind.endsWith('D') ? THREE.DoubleSide : THREE.FrontSide;
+    if (kind.startsWith('lit')) { mat = new THREE.MeshLambertMaterial({ map: pg.tex, side }); if (pg.etex) { mat.emissiveMap = pg.etex; mat.emissive.setRGB(1, 1, 1); } }
+    else if (kind === 'shade') mat = new THREE.MeshBasicMaterial({ map: pg.tex, transparent: true, depthWrite: false });
+    else mat = new THREE.MeshBasicMaterial({ map: pg.tex, side });
+    const b = new THREE.BatchedMesh(list.length, verts, 0, mat);
+    b.frustumCulled = false; b.perObjectFrustumCulled = true; b.sortObjects = true;
+    if (kind === 'shade') b.renderOrder = 1;
+    const ids = new Map(), white = new THREE.Vector4(1, 1, 1, 1);
+    list.forEach(it => {
+      let gid = ids.get(it.geo); if (gid === undefined) { gid = b.addGeometry(it.geo); ids.set(it.geo, gid); }
+      it.b = b; it.id = b.addInstance(gid); b.setColorAt(it.id, white);
+      it.mesh.layers.set(HIDDEN_LAYER);
+    });
+    cache.forEach(g => g.dispose());          // the batch keeps its own copy of the vertices
+    this.batches.push(b); this.group.add(b);
+  }
+  /** send only this print's rectangle to the GPU (a whole 2048 page would stall weak GPUs); falls back to a full upload */
+  upload(r, tex, cv) {
+    const R = this.st.renderer, gl = R.getContext(), pr = R.properties.get(tex), G = ATLAS_G;
+    if (!pr.__webglTexture || !gl.texSubImage2D || tex.version === 0) { tex.needsUpdate = true; return; }
+    const x = r.x - G, y = r.y - G, w = r.w + 2 * G, h = r.h + 2 * G;
+    const sub = Batcher._sub || (Batcher._sub = document.createElement('canvas'));
+    if (sub.width !== w || sub.height !== h) { sub.width = w; sub.height = h; }
+    const g = sub.getContext('2d'); g.clearRect(0, 0, w, h); g.drawImage(cv, x, y, w, h, 0, 0, w, h);
+    const S = R.state;
+    S.bindTexture(gl.TEXTURE_2D, pr.__webglTexture);
+    S.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); S.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    S.pixelStorei(gl.UNPACK_ALIGNMENT, 4); S.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x, this.size - y - h, gl.RGBA, gl.UNSIGNED_BYTE, sub);
+    if (tex.generateMipmaps && tex.minFilter !== THREE.LinearFilter && tex.minFilter !== THREE.NearestFilter) gl.generateMipmap(gl.TEXTURE_2D);
+  }
+  eject(it) { if (it.dead) return; it.dead = true; if (it.b) it.b.setVisibleAt(it.id, false); it.mesh.layers.set(0); this.ejected++; }
+  /** copy matrices / colours / visibility from the originals; returns true if anything changed */
+  sync(sceneRef) {
+    let ch = false;
+    const now = performance.now(), v4 = Batcher._v4 || (Batcher._v4 = new THREE.Vector4());
+    for (const r of this.regions) {
+      if (r.bad || r.white || !r.page || !r.page.tex || r.tex.version === r.ver) continue;
+      r.hits = (r.hits || []).filter(t => now - t < 4000); r.hits.push(now);
+      if (r.hits.length > 5) { r.bad = true; this.items.forEach(it => it.reg === r && this.eject(it)); ch = true; continue; }
+      this.blit(r); this.upload(r, r.page.tex, r.page.cv); if (r.page.etex) this.upload(r, r.page.etex, r.page.ecv); ch = true;
+    }
+    for (const it of this.items) {
+      if (it.dead || !it.b) continue;
+      const n = it.mesh, m = n.material;
+      if (m !== it.mat || !sameSig(matSig(m), it.sig)) { this.eject(it); ch = true; continue; }
+      let vis = n.visible && m.visible, o = n.parent, att = false;
+      while (o) { if (!o.visible) vis = false; if (o === sceneRef) { att = true; break; } o = o.parent; }
+      vis = vis && att;
+      if (vis !== it.vis) { it.b.setVisibleAt(it.id, vis); it.vis = vis; ch = true; }
+      if (!vis) continue;
+      const e = n.matrixWorld.elements, a = it.m;
+      for (let i = 0; i < 16; i++) if (a[i] !== e[i]) { a.set(e); it.b.setMatrixAt(it.id, n.matrixWorld); ch = true; break; }
+      const c = m.color, al = it.kind === 'shade' ? m.opacity : 1, q = it.c;
+      if (q[0] !== c.r || q[1] !== c.g || q[2] !== c.b || q[3] !== al) { q[0] = c.r; q[1] = c.g; q[2] = c.b; q[3] = al; it.b.setColorAt(it.id, v4.set(c.r, c.g, c.b, al)); ch = true; }
+    }
+    return ch;
+  }
+  get count() { return this.items.filter(it => !it.dead && it.b).length; }
+  dispose() {
+    this.batches.forEach(b => { b.geometry.dispose(); b.material.dispose(); b.dispose && b.dispose(); });
+    this.pages.forEach(p => { p.tex && p.tex.dispose(); p.etex && p.etex.dispose(); });
+    this.group.removeFromParent();
+  }
+}
+
+/** run small tasks in idle time, budget ms per slice (a task may return a promise) */
+export function runTasks(tasks, { budget = 7, cancelled = null, label = 'paper-task', urgent = null } = {}) {   // urgent(): the page is waiting, go faster
+  return new Promise((resolve, reject) => {
+    let i = 0, spent = 0;
+    const sched = () => (urgent && urgent() ? setTimeout(slice, 0) : window.requestIdleCallback ? requestIdleCallback(slice, { timeout: 120 }) : setTimeout(slice, 16));
+    function slice() {
+      if (cancelled && cancelled()) { reject(new Error('cancelled')); return; }
+      const t0 = performance.now();
+      try {
+        while (i < tasks.length) {
+          const ti = performance.now();
+          const r = tasks[i++]();
+          if (performance.now() - ti > 30) try { performance.measure(label + '#' + (i - 1), { start: ti }); } catch (e) {}
+          if (r && r.then) { spent += performance.now() - t0; r.then(sched, reject); return; }
+          if (performance.now() - t0 > (urgent && urgent() ? 24 : budget)) break;
+        }
+      } catch (e) { reject(e); return; }
+      spent += performance.now() - t0;
+      if (i >= tasks.length) resolve(spent); else sched();
+    }
+    sched();
+  });
+}
+
 /* ====================================================================================
    THE STAGE: renderer, camera framing (landscape / portrait), clock, open / close
+   A scene is built into a SLOT (its own hinges, updaters, caches, batches). mount() builds and shows at once
+   (the gallery); prepare() builds in small idle-time pieces while another page is up, show() swaps it in.
    ==================================================================================== */
-export function createStage(canvas) {
+const SLOT_KEYS = ['_cache', '_flat', '_blob', '_page', 'hinges', 'updaters', 'time', 'openness', 'api', 'def', 'ctx', 'L', 'lightPos', 'pitch', 'orient', 'root', 'buildMs', 'prepMs', 'state', 'busyUntil', 'batch', 'content'];
+export function createStage(canvas, opts = {}) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' }); }
   catch (e) { return null; }
   if (!renderer.getContext()) return null;
   const mobile = matchMedia('(pointer:coarse)').matches || innerWidth < 600;
-  renderer.setPixelRatio(Math.min(mobile ? 1.25 : 1.5, devicePixelRatio || 1));
+  const dprMax = Math.min(mobile ? 1.25 : 1.5, devicePixelRatio || 1), dprMin = Math.min(dprMax, .75);
+  renderer.setPixelRatio(dprMax);
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.capabilities.getMaxAnisotropy();   // first call is slow on some drivers: do it now, not in a scene build
+  const useBatch = opts.batch !== false;
 
-  const scene = new THREE.Scene();
+  const scene = new THREE.Scene(); scene.matrixWorldAutoUpdate = false;
   const camera = new THREE.PerspectiveCamera(28, 1, .5, 600);
   const hemi = new THREE.HemisphereLight(PAL.fill, PAL.shadow, 1.0); scene.add(hemi);
   const front = new THREE.DirectionalLight('#B8B2E8', .55); front.position.set(.2, .6, 1); scene.add(front); // frontal fill ~0.3 of key
@@ -582,17 +806,21 @@ export function createStage(canvas) {
     THREE, scene, camera, renderer, mobile, reduce: REDUCE, hemi, front,
     L: { x: -.6, y: -.8 }, pitch: 30 * Math.PI / 180, yaw: 0,
     lightPos: new THREE.Vector3(-2, 5, 3), hinges: [], updaters: [], time: 0, openness: 0, frozen: false,
-    root: null, def: null, api: null, free: null, orient: 'land',
-    _cache: new Map(), _flat: new Set(), _blob: null,
+    root: null, def: null, api: null, free: null, orient: 'land', batch: null, _page: null,
+    _cache: new Map(), _flat: new Set(), _blob: null, _jobs: null,
     flatMat(col) { const m = new THREE.MeshLambertMaterial({ color: col }); st._flat.add(m); return m; },
     hinge(obj, o) { const h = new Hinge(obj, o); h.order = o.order || 0; st.hinges.push(h); return h; },
     onUpdate(fn) { st.updaters.push(fn); }
   };
+  /* perf counters (read by the ?fps=1 meter on the site) */
+  st.perf = { renders: 0, cpu: 0, frames: 0, calls: 0, tris: 0, dpr: dprMax, ticks: 0 };
 
   /* ---- camera framing ----
      scene.frames = { focus: {min,max}, wide: {min,max} } (world boxes of the settled pose)
      landscape: focus fits the band above the text box; wide fills the screen width (uses both sides of the box)
      portrait : focus fits the band above the text box, nothing important outside it
+     Both: the WHOLE main page, from the top of its tallest piece to the front edge of the paper, stays inside
+     the band (free.top .. free.bottom), so the island never sinks behind the text box or runs into the top bar.
      scene.cam = { land: { pitch, yaw, fov }, port: { ... } } (degrees) */
   const projBox = (b, W, H) => {
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; const v = new THREE.Vector3();
@@ -615,25 +843,29 @@ export function createStage(canvas) {
     const place = () => { camera.position.copy(tgt).addScaledVector(dir, d); camera.lookAt(tgt); camera.updateMatrixWorld(); };
     const band = { w: (free.right - free.left), h: (free.bottom - free.top) };
     const fitF = cam.fillFocus || (st.orient === 'land' ? [.9, .9] : [.96, .92]);
-    for (let i = 0; i < 8; i++) {
-      place(); const pf = projBox(f, W, H);
-      let k = Math.max(pf.w / (band.w * fitF[0]), pf.h / (band.h * fitF[1]));
+    // top = focus or the tallest piece, bottom = the front edge of the main page (when known)
+    const topBox = st.content || f, pageBox = st._page || f;
+    const span = () => { const a = projBox(topBox, W, H), a2 = projBox(f, W, H), b = projBox(pageBox, W, H); return { y0: Math.min(a.y0, a2.y0), y1: Math.max(b.y1, a2.y1) }; };
+    for (let i = 0; i < 10; i++) {
+      place(); const pf = projBox(f, W, H), sp = span();
+      let k = Math.max(pf.w / (band.w * fitF[0]), pf.h / (band.h * fitF[1]), (sp.y1 - sp.y0) / (band.h * .97));
       if (st.orient === 'land') { const pw = projBox(wd, W, H); k = Math.max(k, pw.w / (W * (cam.fillWide || .96))); }
       d *= k;
     }
-    // vertical: focus centred in the band; landscape: wide must not run off the bottom
-    for (let i = 0; i < 6; i++) {
-      place(); const pf = projBox(f, W, H), pw = projBox(wd, W, H);
-      const oy = (pf.y0 + pf.y1) / 2 - (free.top + free.bottom) / 2;
+    // vertical: the page span centred in the band; landscape: wide must not run off the bottom
+    let oy = 0;
+    for (let i = 0; i < 8; i++) {
+      place(); const sp = span(), pw = projBox(wd, W, H);
+      oy = (sp.y0 + sp.y1) / 2 - (free.top + free.bottom) / 2;
       if (st.orient === 'land' && pw.y1 - oy > H - 6) { d *= 1.05; continue; }
       break;
     }
-    place(); const pf = projBox(f, W, H), pw = projBox(wd, W, H);
+    place(); const pf = projBox(f, W, H), pw = projBox(wd, W, H), sp = span();
+    oy = (sp.y0 + sp.y1) / 2 - (free.top + free.bottom) / 2;
     const ox = st.orient === 'land' ? (pw.x0 + pw.x1) / 2 - W / 2 : (pf.x0 + pf.x1) / 2 - (free.left + free.right) / 2;
-    const oy = (pf.y0 + pf.y1) / 2 - (free.top + free.bottom) / 2;
     camera.setViewOffset(W, H, ox, oy, W, H);
     st.px = pf.h / Math.max(1e-3, f.max[1] - f.min[1] + (f.max[2] - f.min[2]) * Math.sin(st.pitch)); // ~px per unit (info)
-    render();
+    draw();
   };
 
   function disposeTree(o) {
@@ -642,20 +874,113 @@ export function createStage(canvas) {
       if (n.material) [].concat(n.material).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
     });
   }
-  /** build a scene module: def.build(st, ctx) -> { root, frames, cam, react(m, i), reset() } */
-  st.mount = (def, ctx = {}) => {
-    if (st.root) { scene.remove(st.root); disposeTree(st.root); }
-    st._cache.clear(); st._flat.clear(); st._blob = null;
-    st.hinges = []; st.updaters = []; st.time = 0; st.openness = 0; st.api = null; st.def = def; st.ctx = ctx;
-    st.L = { x: -.6, y: -.8 }; st.lightPos.set(-2, 5, 3);
-    const lay = st.free && st.free.W >= st.free.H ? 'land' : 'port';
-    const cam = def.cam && def.cam[lay]; st.pitch = ((cam && cam.pitch) ?? 30) * Math.PI / 180;   // island opens edge-on to THIS pitch
-    st.orient = lay;                                     // scenes build their side pages only for 'land'
+  /* ---- slots ---- */
+  const enter = (slot) => { const saved = {}; SLOT_KEYS.forEach(k => { saved[k] = st[k]; st[k] = slot[k]; }); return saved; };
+  const leave = (slot, saved) => { SLOT_KEYS.forEach(k => { slot[k] = st[k]; st[k] = saved[k]; }); };
+  function newSlot(def, ctx) {
+    const lay = st.free && st.free.W >= st.free.H ? 'land' : (st.free ? 'port' : st.orient);
+    const cam = def.cam && def.cam[lay];
+    return { _cache: new Map(), _flat: new Set(), _blob: null, _page: null, hinges: [], updaters: [], time: 0, openness: 0, api: null, def, ctx,
+      L: { x: -.6, y: -.8 }, lightPos: new THREE.Vector3(-2, 5, 3), pitch: ((cam && cam.pitch) ?? 30) * Math.PI / 180,   // island opens edge-on to THIS pitch
+      orient: lay, root: null, buildMs: 0, prepMs: 0, state: null, busyUntil: 0, batch: null, content: null };
+  }
+  /** build the scene's objects now; painting, atlas and batches become tasks */
+  function buildSlot(def, ctx) {
+    const slot = newSlot(def, ctx), saved = enter(slot);
+    st._jobs = [];
     const t0 = performance.now();
-    st.api = def.build(st, ctx); st.root = st.api.root; scene.add(st.root);
-    st.buildMs = performance.now() - t0;
+    try { st.api = def.build(st, ctx); st.root = st.api.root; }
+    finally { slot.jobs = st._jobs; st._jobs = null; st.buildMs = performance.now() - t0; leave(slot, saved); try { performance.measure('paper-build', { start: t0 }); } catch (e) {} }
+    const tasks = slot.jobs.slice();
+    tasks.push(() => {   // the height of the tallest piece on the main page in its open pose (for the framing)
+      const hs = slot.hinges, keep = hs.map(h => [h.x, h.v]);
+      hs.forEach(h => { h.x = 1; h.apply(); });
+      slot.root.updateMatrixWorld(true);
+      const box = new THREE.Box3(), tmp = new THREE.Box3();
+      const walk = (o) => {
+        if (o.userData.sidePage) return;
+        if (o.isMesh && o.material && o.material.map && !o.material.transparent && o.geometry) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); }
+        o.children.forEach(walk);
+      };
+      walk(slot.root);
+      hs.forEach((h, i) => { h.x = keep[i][0]; h.v = keep[i][1]; h.apply(); });
+      slot.content = box.isEmpty() ? null : { min: box.min.toArray(), max: box.max.toArray() };
+    });
+    if (useBatch) { slot.batch = new Batcher(st, slot.root); tasks.push(() => { tasks.push(...slot.batch.plan()); }); }
+    slot.tasks = tasks;
+    return slot;
+  }
+  const runAll = (tasks) => { for (let i = 0; i < tasks.length; i++) tasks[i](); };   // tasks may grow while running
+  /** prepare a scene in idle time; resolves with a slot for show(). opts.cancelled() stops it */
+  st.prepare = (def, ctx = {}, o = {}) => new Promise((resolve, reject) => {
+    const go = () => {
+      let slot;
+      try { slot = buildSlot(def, ctx); } catch (e) { reject(e); return; }
+      const tasks = slot.tasks;
+      // GPU side last: upload the atlas pages, compile the shaders with this scene's lights
+      const gpu = () => {
+        const extra = [];
+        if (slot.batch) slot.batch.pages.forEach(p => { extra.push(() => p.tex && renderer.initTexture(p.tex)); if (p.etex) extra.push(() => renderer.initTexture(p.etex)); });
+        // warm the shaders by really drawing each material once into one pixel (ANGLE / D3D compiles at the first
+        // draw, compile() alone does not help); one material per task, so no single long pause
+        const lights = [new THREE.HemisphereLight(), new THREE.DirectionalLight()];
+        slot.root.traverse(n => { if (n.isLight && !n.isHemisphereLight) lights.push(n.clone()); });
+        const seen = new Set(), reps = [];
+        slot.root.updateMatrixWorld(true);
+        slot.root.traverse(n => {
+          if (!(n.isMesh || n.isPoints || n.isLine || n.isSprite) || !n.material || n.layers.mask !== 1) return;
+          [].concat(n.material).forEach(m => { const k = m.uuid + (n.isInstancedMesh ? 'i' : '') + (n.isSkinnedMesh ? 's' : ''); if (!seen.has(k)) { seen.add(k); reps.push(n); } });
+        });
+        const tmp = new THREE.Scene(); tmp.add(...lights);
+        // browsers with parallel shader compiling (Chrome / Edge / Firefox on desktop): compile everything off the main thread first
+        if (renderer.extensions.has('KHR_parallel_shader_compile') && renderer.compileAsync) extra.push(() => {
+          const all = new THREE.Scene(); all.add(...lights.map(l => l.clone()));
+          const proxies = reps.filter(n => !n.isInstancedMesh && !n.isSkinnedMesh).map(n => n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material));
+          proxies.forEach(o => all.add(o));
+          const bs = slot.batch ? slot.batch.batches.map(b => [b, b.parent]) : []; bs.forEach(([b]) => all.add(b));
+          const back = () => { bs.forEach(([b, par]) => par && par.add(b)); proxies.forEach(o => o.removeFromParent()); };
+          return renderer.compileAsync(all, camera).then(back, back);
+        });
+        const pix = (o) => {
+          renderer.setScissorTest(true); renderer.setScissor(0, 0, 1, 1);
+          tmp.add(o); try { renderer.render(tmp, camera); } finally { tmp.remove(o); renderer.setScissorTest(false); st._dirty = true; }
+        };
+        reps.forEach(n => extra.push(() => {
+          if (n.isInstancedMesh || n.isSkinnedMesh) return;
+          const o = n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material);
+          o.frustumCulled = false; o.renderOrder = n.renderOrder; pix(o);
+        }));
+        if (slot.batch) slot.batch.batches.forEach(b => extra.push(() => {
+          const par = b.parent, pc = b.perObjectFrustumCulled; b.perObjectFrustumCulled = false;
+          pix(b); b.perObjectFrustumCulled = pc; if (par) par.add(b);
+        }));
+        extra.push(() => { if (st.root) kick(); });
+        return extra;
+      };
+      const t0 = performance.now();
+      runTasks(tasks, { cancelled: o.cancelled, urgent: o.urgent })   // (the batch plan appends to `tasks` while it runs)
+        .then(spent => runTasks(gpu(), { cancelled: o.cancelled, urgent: o.urgent, label: 'paper-gpu' }).then(s2 => { slot.prepMs = spent + s2; slot.prepWall = performance.now() - t0; resolve(slot); }))
+        .catch(e => { st.discard(slot); reject(e); });
+    };
+    window.requestIdleCallback ? requestIdleCallback(go, { timeout: 400 }) : setTimeout(go, 30);
+  });
+  /** swap a prepared slot in and open it */
+  st.show = (slot) => {
+    const t0 = performance.now();
+    if (st.root) { scene.remove(st.root); if (st.batch) st.batch.dispose(); disposeTree(st.root); }
+    SLOT_KEYS.forEach(k => { st[k] = slot[k]; });
+    scene.add(st.root); if (st.batch) scene.add(st.batch.group);
     if (st.free) st.layout(st.free);
     st.open();
+    try { performance.measure('paper-show', { start: t0 }); } catch (e) {}
+  };
+  st.discard = (slot) => { if (!slot || !slot.root || slot.root === st.root) return; if (slot.batch) slot.batch.dispose(); disposeTree(slot.root); };
+  /** build a scene module and show it at once: def.build(st, ctx) -> { root, frames, cam, react(m, i), reset() } */
+  st.mount = (def, ctx = {}) => {
+    if (st.root) { scene.remove(st.root); if (st.batch) st.batch.dispose(); disposeTree(st.root); st.root = null; st.batch = null; }
+    const t0 = performance.now(), slot = buildSlot(def, ctx);
+    const b0 = slot.buildMs; runAll(slot.tasks); slot.prepMs = performance.now() - t0 - b0;
+    st.show(slot);
   };
   st.open = () => {
     st.time = 0; st.state = 'open';
@@ -685,31 +1010,83 @@ export function createStage(canvas) {
     const isl = st.hinges.find(x => x.island); st.openness = isl ? Math.max(0, Math.min(1, isl.x)) : 1;
     st.updaters.forEach(fn => fn(st.time, dt));
   }
-  /* perf counters (read by the ?fps=1 meter on the site): renders, CPU ms of step + render, draw calls of the last frame */
-  st.perf = { renders: 0, cpu: 0, frames: 0, calls: 0, tris: 0 };
+  /* what changed since the last draw: batched cards (Batcher.sync) + everything drawn on its own */
+  const sigs = new WeakMap(); let lastCount = -1;
+  function looseChanged() {
+    let ch = false, count = 0;
+    scene.traverseVisible(o => {
+      let s;
+      if (o.isLight) s = o.intensity * 7.1 + o.color.r + o.color.g * 3 + o.color.b * 5 + o.position.x * 11 + o.position.y * 13 + o.position.z * 17;
+      else if ((o.isMesh || o.isPoints || o.isSprite || o.isLine) && !o.isBatchedMesh && o.layers.test(camera.layers)) {
+        const m = o.material; if (!m || Array.isArray(m)) return;
+        s = (m.opacity || 0) * 11 + (m.color ? m.color.r + m.color.g * 3 + m.color.b * 5 : 0) + (m.emissive ? m.emissive.r * 31 : 0) + m.version * 13 + (m.map ? m.map.version * 17 + m.map.offset.x * 19 + m.map.offset.y * 23 : 0);
+        const a = o.geometry && o.geometry.attributes; if (a) for (const k in a) s += a[k].version * 29;
+      } else return;
+      count++;
+      const e = o.matrixWorld.elements; for (let i = 0; i < 16; i++) s += e[i] * (i + 1.37);
+      if (sigs.get(o) !== s) { sigs.set(o, s); ch = true; }
+    });
+    if (count !== lastCount) { lastCount = count; ch = true; }
+    return ch;
+  }
+  function sync() { scene.updateMatrixWorld(); return st.batch ? st.batch.sync(scene) : false; }
   function render() { renderer.render(scene, camera); st.perf.renders++; st.perf.calls = renderer.info.render.calls; st.perf.tris = renderer.info.render.triangles; }
-  st.render = render;
+  function draw() { sync(); render(); }
+  st.render = draw;
 
-  /* clock: draws only while visible; 30 fps on phones and once everything has settled */
+  /* adaptive resolution: if the frame rate stays under 45 (30-fps mode: under 26), lower the pixel ratio
+     step by step down to 0.75; raise it again slowly when there is headroom */
+  let aT = 0, aTicks = 0, aCool = 0, aGood = 0;
+  function adapt(ms, target) {
+    if (!aT) { aT = ms; aTicks = 0; return; }
+    aTicks++;
+    if (ms - aT < 1000) return;
+    const fps = aTicks * 1000 / (ms - aT); aT = ms; aTicks = 0;
+    if (ms < aCool) return;
+    const lowAt = target >= 60 ? 45 : 26, cur = renderer.getPixelRatio();
+    if (fps < lowAt && cur > dprMin + .01) { setDpr(Math.max(dprMin, cur - .15)); aCool = ms + 1500; aGood = 0; }
+    else if (fps >= target * .95 && cur < dprMax - .01) { if (++aGood >= 6) { setDpr(Math.min(dprMax, cur + .1)); aGood = 0; aCool = ms + 2500; } }
+    else aGood = 0;
+  }
+  function setDpr(v) { renderer.setPixelRatio(v); st.perf.dpr = v; if (st.free) st.layout(st.free); }
+
+  /* clock: draws only while visible and only when something changed; 60 fps while things move,
+     30 fps on phones and once everything has settled */
   let raf = 0, last = 0;
   const settled = () => st.hinges.every(h => h.settled);
   function frame(ms) {
     raf = 0; if (st.frozen || document.hidden || !st.root) return;
-    const fps = (mobile || (settled() && st.time > st.busyUntil)) ? 30 : 60;
+    const quiet = settled() && st.time > st.busyUntil;
+    const fps = (mobile || quiet) ? 30 : 60;
     if (last && ms - last < 1000 / fps - 2) { raf = requestAnimationFrame(frame); return; }
     const dt = last ? Math.min(.05, Math.max(0, (ms - last) / 1000)) : 0; last = ms;
-    const c0 = performance.now(); step(dt); render(); st.perf.cpu += performance.now() - c0; st.perf.frames++;
-    if (st.reduce && settled() && st.time > st.busyUntil) return; // nothing moves: stop drawing
+    const c0 = performance.now();
+    step(dt);
+    let ch = sync(); ch = looseChanged() || ch;
+    if (ch || !quiet || st._dirty) { render(); st._dirty = false; }
+    st.perf.cpu += performance.now() - c0; st.perf.frames++;
+    adapt(ms, fps);
+    if (st.reduce && quiet && !ch) return; // nothing moves: stop drawing
     raf = requestAnimationFrame(frame);
   }
   function kick() { if (!raf && !st.frozen) { last = 0; raf = requestAnimationFrame(frame); } }
   st.kick = kick;
+  /* the first draw of a new WebGL context is slow on some drivers (ANGLE / D3D11 sets itself up): do it early, with
+     the basic paper material, so it happens while the reader is still on an earlier page */
+  st.warmup = () => {
+    const t0 = performance.now(), tmp = new THREE.Scene();
+    tmp.add(new THREE.HemisphereLight(), new THREE.DirectionalLight());
+    const g = new THREE.PlaneGeometry(1, 1), o = new THREE.Mesh(g, new THREE.MeshLambertMaterial()); o.frustumCulled = false; tmp.add(o);
+    renderer.setScissorTest(true); renderer.setScissor(0, 0, 1, 1);
+    try { renderer.render(tmp, camera); } finally { renderer.setScissorTest(false); g.dispose(); o.material.dispose(); st._dirty = true; }
+    try { performance.measure('paper-warmup', { start: t0 }); } catch (e) {}
+  };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
 
   /* deterministic capture: restart then step a fixed clock */
-  st.seek = (T) => { st.frozen = true; st.api && st.api.reset && st.api.reset(); st.open(); for (let t = 0; t < T; t += 1 / 60) step(1 / 60); render(); };
-  st.advance = (T) => { st.frozen = true; for (let t = 0; t < T; t += 1 / 60) step(1 / 60); render(); };
+  st.seek = (T) => { st.frozen = true; st.api && st.api.reset && st.api.reset(); st.open(); for (let t = 0; t < T; t += 1 / 60) step(1 / 60); draw(); };
+  st.advance = (T) => { st.frozen = true; for (let t = 0; t < T; t += 1 / 60) step(1 / 60); draw(); };
   st.resume = () => { st.frozen = false; kick(); };
-  st.stats = () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, buildMs: Math.round(st.buildMs), dpr: renderer.getPixelRatio(), orient: st.orient });
+  st.stats = () => ({ calls: st.perf.calls, tris: st.perf.tris, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, buildMs: Math.round(st.buildMs), prepMs: Math.round(st.prepMs || 0), batched: st.batch ? st.batch.count : 0, ejected: st.batch ? st.batch.ejected : 0, dpr: renderer.getPixelRatio(), orient: st.orient });
   return st;
 }

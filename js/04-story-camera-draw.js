@@ -36,6 +36,6 @@ function draw(t){
   ctx.restore();
   if(!NP)NP=ctx.createPattern(NZ,'repeat');
   if(!reduce&&FR++%3===0)GJ=[Math.floor(R()*200),Math.floor(R()*200)];
-  ctx.save();ctx.translate(GJ[0],GJ[1]);ctx.fillStyle=NP;ctx.globalCompositeOperation='overlay';ctx.globalAlpha=.3;ctx.fillRect(-200,-200,W+400,H+400);ctx.restore();
+  if(!window.PAPER_ON){ctx.save();ctx.translate(GJ[0],GJ[1]);ctx.fillStyle=NP;ctx.globalCompositeOperation='overlay';ctx.globalAlpha=.3;ctx.fillRect(-200,-200,W+400,H+400);ctx.restore()}   // film grain: off while a paper scene (js/22) is up
 }
 function loop(t){draw(t);requestAnimationFrame(loop)}

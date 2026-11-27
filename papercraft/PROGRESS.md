@@ -239,3 +239,19 @@ DGA ภาพวาดยักษ์คลี่ลงมาจากด้า�
 3. three.js ยังไม่ได้ minify (ระบบไม่ให้รัน esbuild ผ่าน npx) ต้องทำก่อนขึ้นเว็บจริง
 4. ความชัดตื้น (dofSpread) ยังต่ำกว่าเกณฑ์ measure.py เพราะใช้แค่เบลอวาดไว้ ถ้าอยากได้มากกว่านี้ต้องเพิ่ม post-processing ซึ่งกินแบตมือถือ — ตอนนี้เลือกประหยัดแบตไว้ก่อน
 5. 5.2: คะแนนจริงที่เท่ากันหลายสาขา (เช่น ก) ทำให้เมืองแบ่งเป็นห้าภาคเท่ากัน ถ้าอยากให้สาขาที่ได้คะแนนสูงสุดเด่นกว่า (เช่นภาคใหญ่ขึ้น หรือเวทีเป็นสีของสาขานั้น) บอกได้
+
+## Performance pass (branch try-web)
+
+- **Merging (batching):** plain cards go into 2048-px texture atlas pages and are drawn through a few `BatchedMesh`
+  (lit / unlit / ground shadow per page). The original meshes stay in the scene on layer 1 and drive the instances
+  every frame. A card whose material changes in a way an instance can't follow is handed back to normal drawing.
+  Draw calls: 102–239 → **5–19 per scene**. A reprinted card updates only its own rectangle of the atlas.
+  `?batch=0` turns merging off for comparison.
+- **Build ahead:** `st.prepare(def, ctx)` builds in idle-time slices (≈7 ms; faster when the page is already waiting).
+  Steps: paint, cut the sheets, atlas, batches, texture upload, then warm the shaders one material at a time.
+  `st.show(slot)` swaps it in. `st.mount` (the gallery) still does everything at once.
+- **Clock:** draws only when something changed. Runs at 60 fps while things move, 30 fps once settled and on phones.
+  The pixel ratio drops 0.15 at a time down to 0.75 when fps < 45 (30-fps mode: < 26), and rises again after 6 s of headroom.
+- **Framing:** the main page box (`st._page`) plus the tallest piece (`st.content`) fit the band from
+  `free.top` to `free.bottom`. The island's front edge stays above the text box and the top stays below the progress bar.
+- three.js: `vendor/three.min.js` (esbuild, 731 KB, gzip 184 KB; was 2.1 MB, gzip 409 KB).
