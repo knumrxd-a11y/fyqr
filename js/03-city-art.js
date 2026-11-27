@@ -47,6 +47,7 @@ function cityDraw(sec,bo,pr){
   if(CL.comps){const s=B.s;
     for(const o of CL.comps){const d=o.d,ph=o.ph,ox=Math.sin(sec*.27+ph)*o.amp*s*.8+SCAM.x*W*(d-.5)*.7+(guide.x-.5)*W*.05*(d-.3),oy=Math.sin(sec*.41+ph*1.7)*o.amp*s+SCAM.y*H*(d-.5)*.45,zc=1+(SCAM.z-1)*(d-.5)*.55+bo*.04*d,
       kc=o.k<5?Math.min(1,PLN[o.k].cur+PLN[o.k].flash*.4):Math.min(1,pr*.95),fl=o.k<5?PLN[o.k].flash:0;
+      if(o.moon&&window.SUN&&SUN.ready())continue;  /* moons are hidden: the sun is drawn in the middle of the sky instead (js/18-sun.js) */
       c.save();c.translate(B.x+(o.x+o.w/2)*s+ox,y+(o.y+o.h/2)*s+oy);c.rotate(Math.sin(sec*.3+ph)*o.rot);c.scale(zc,zc);
       const dw=o.w*s,dh=o.h*s;c.drawImage(o.gr,-dw/2,-dh/2,dw,dh);
       if(kc>.01){c.globalAlpha=kc;c.drawImage(o.co,-dw/2,-dh/2,dw,dh)}

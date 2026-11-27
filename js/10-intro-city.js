@@ -45,7 +45,7 @@ function frame(ms){
   const s=Math.min(W*1.12/880,H*.52/622)*(1+e*1.5),px=540,py=360,
     sx0=W/2+CAM.x*-6*(1-e),sy0=H*.06+(py-34)*s+Math.sin(t*.62)*4*s*(1-e)+SP.y*.12*s*(1-e)-e*H*.02;
   /* sky */
-  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0a0820');bg.addColorStop(.55,'#171236');bg.addColorStop(1,'#241a46');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0a0820');bg.addColorStop(.55,'#171236');bg.addColorStop(1,'#241a46');g.fillStyle=bg;g.fillRect(0,0,W,H);if(window.AURORA)AURORA.draw(g,W,H,.85);
   for(const q of STR){const a=.25+.55*Math.abs(Math.sin(t*(.5+q.z)+q.p));g.fillStyle='rgba(255,240,215,'+a+')';g.fillRect(q.x*W-CAM.x*q.z*6,q.y*H-CAM.y*q.z*4,q.r,q.r)}
   g.globalCompositeOperation='lighter';
   const M=SPR.moon,mx=sx0+(M?(M.x+M.w/2-px)*s:0)-CAM.x*10*(1-e),my=sy0+(M?(M.y+M.h/2-py)*s:0)-CAM.y*6-Math.sin(t*.45)*5*s-e*H*.2,mr=Math.max(W,H)*(.2+.02*Math.sin(t*.7));
@@ -53,7 +53,9 @@ function frame(ms){
   /* moonlight falling over the city */
   g.save();g.translate(mx,my);const wob=Math.sin(t*.3)*.04;g.rotate(wob);gr=g.createLinearGradient(0,0,0,H*.7);gr.addColorStop(0,'rgba(255,205,150,.13)');gr.addColorStop(1,'rgba(255,205,150,0)');g.fillStyle=gr;g.beginPath();g.moveTo(-14,0);g.lineTo(14,0);g.lineTo(W*.32,H*.7);g.lineTo(-W*.32,H*.7);g.fill();g.restore();
   g.globalCompositeOperation='source-over';
-  if(M){g.save();g.translate(mx,my);g.scale(s*(1+.012*Math.sin(t*1.1)),s*(1+.012*Math.sin(t*1.1)));g.drawImage(M.c,-M.w/2,-M.h/2,M.w,M.h);g.restore()}
+  /* the sun: animated sprite from js/18-sun.js; falls back to the old moon picture until it has loaded */
+  if(window.SUN&&SUN.draw(g,mx,my+e*H*.2,s/(1+e*1.5),t,Math.max(0,1-e*1.8))){}  /* on start: the sun stays put and fades out */
+  else if(M){g.save();g.translate(mx,my);g.scale(s*(1+.012*Math.sin(t*1.1)),s*(1+.012*Math.sin(t*1.1)));g.drawImage(M.c,-M.w/2,-M.h/2,M.w,M.h);g.restore()}
   /* back mist */
   const mist=b=>{for(const m of MS){if(m.f!==b)continue;const x=((m.x+t*m.v)%1.4+1.4)%1.4-.2,w=W*(.7*m.s),y=m.y*H+Math.sin(t*.3+m.x*9)*6;g.globalAlpha=m.a*(1-e*.6);g.drawImage(MIST,x*W-w/2,y-w*.2,w,w*.4)}g.globalAlpha=1};
   mist(true);

@@ -9,8 +9,8 @@ function draw(t){
   const amp=reduce?0:.4+bo*6+M.kick*4;
   ctx.save();ctx.translate(amp*(Math.sin(sec*31)+.6*Math.sin(sec*17.3)),amp*(Math.sin(sec*27)+.6*Math.cos(sec*13.1)));
   const sk=ctx.createLinearGradient(0,-40,0,H+40);sk.addColorStop(0,bk('#07061a'));sk.addColorStop(.55,bk('#150f33'));sk.addColorStop(1,bk('#2a1a4a'));
-  ctx.fillStyle=sk;ctx.fillRect(-60,-60,W+120,H+120);
-  for(const n of NEB){const x=n.x*W+Math.sin(sec*.05+n.y*9)*W*.05,y=n.y*H,c=bkA(n.c),rg=ctx.createRadialGradient(x,y,0,x,y,n.r*D);
+  ctx.fillStyle=sk;ctx.fillRect(-60,-60,W+120,H+120);if(window.AURORA)AURORA.draw(ctx,W,H,.3+.45*Sb);
+  for(const n of NEB){const x=n.x*W+Math.sin(sec*.05+n.y*9)*W*.05,y=n.y*H,c=bkA(n.c);if(window.QL>=2){QGLOW(ctx,c,.3,x,y,n.r*D);continue}const rg=ctx.createRadialGradient(x,y,0,x,y,n.r*D);   // quality 2+: pre-drawn glow
     rg.addColorStop(0,'rgba('+c+',.3)');rg.addColorStop(1,'rgba('+c+',0)');ctx.fillStyle=rg;ctx.fillRect(-60,-60,W+120,H+120)}
   for(const s of STARS){const sy=((s.y+cam.z*.004*s.z)%1)*H,a=.3+.5*Math.abs(Math.sin(sec*1.2*s.z+s.p));
     ctx.fillStyle='rgba(255,246,220,'+a+')';ctx.fillRect(s.x*W-SCAM.x*W*.25*s.z,sy,s.r,s.r+bo*34*s.z)}
@@ -21,6 +21,7 @@ function draw(t){
    cityDraw(sec,bo,pr);ctx.restore()}
   /* sea of clouds */
   for(const c of CLD){const x=(((c.x*W+sec*4*c.z+cam.z*c.z*3-SCAM.x*W*c.z*1.2)%(W*1.3))+W*1.3)%(W*1.3)-W*.15,y=c.y*H+Math.sin(sec*.3+c.x*9)*3,r=c.r*(.6+c.z*.6),col=c.c?bkA('#9a88d0'):bkA('#e9e3d4');
+    if(window.QL>=2){QGLOW(ctx,col,.34*c.z+.1,x,y,r);continue}   // quality 2+: pre-drawn cloud
     const cg=ctx.createRadialGradient(x,y,0,x,y,r);cg.addColorStop(0,'rgba('+col+','+(.34*c.z+.1)+')');cg.addColorStop(1,'rgba('+col+',0)');ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill()}
   /* the guiding star */
   const gx=guide.tx!==null?guide.tx:.5+Math.sin(sec*.5)*.05,gy=guide.ty!==null?guide.ty:.1+Math.sin(sec*.9)*.01;
@@ -36,6 +37,6 @@ function draw(t){
   ctx.restore();
   if(!NP)NP=ctx.createPattern(NZ,'repeat');
   if(!reduce&&FR++%3===0)GJ=[Math.floor(R()*200),Math.floor(R()*200)];
-  ctx.save();ctx.translate(GJ[0],GJ[1]);ctx.fillStyle=NP;ctx.globalCompositeOperation='overlay';ctx.globalAlpha=.3;ctx.fillRect(-200,-200,W+400,H+400);ctx.restore();
+  if(!(window.QL>=1)){ctx.save();ctx.translate(GJ[0],GJ[1]);ctx.fillStyle=NP;ctx.globalCompositeOperation='overlay';ctx.globalAlpha=.3;ctx.fillRect(-200,-200,W+400,H+400);ctx.restore()}   // film grain (quality 1+: a still layer, js/23)
 }
 function loop(t){draw(t);requestAnimationFrame(loop)}
