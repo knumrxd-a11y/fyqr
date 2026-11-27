@@ -18,7 +18,7 @@ const st=document.createElement('style');st.textContent=`
 `;document.head.appendChild(st);
 const fx=document.createElement('canvas');fx.id='fx';document.body.appendChild(fx);const f=fx.getContext('2d');
 let FW=0,FH=0,P=[],RG=[],WASH=null;
-function rf(){const d=Math.min(1.5,devicePixelRatio||1);FW=innerWidth;FH=innerHeight;fx.width=FW*d;fx.height=FH*d;f.setTransform(d,0,0,d,0,0)}rf();addEventListener('resize',rf);
+function rf(){const d=DEV.dpr(innerWidth,innerHeight,1.5);FW=innerWidth;FH=innerHeight;fx.width=FW*d;fx.height=FH*d;f.setTransform(d,0,0,d,0,0)}rf();addEventListener('resize',rf);
 const rgba=(h,a)=>{const c=hx(h);return 'rgba('+c.join(',')+','+a+')'};
 // tap anywhere on an option: instant ripple (before the choice is confirmed)
 document.addEventListener('pointerdown',e=>{const o=e.target.closest&&e.target.closest('.opt');if(!o||o.disabled||reduce)return;RG.push({x:e.clientX,y:e.clientY,t:0,c:'#fff1c8',m:1})},true);

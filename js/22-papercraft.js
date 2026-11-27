@@ -4,14 +4,18 @@
    The scene code lives in papercraft/ (shared.js + scenes/), loaded with import().
    - Nothing is built when a page opens: three.js and the NEXT paper scene are loaded and built ahead, in small
      idle-time pieces, while the player reads the page before it (papercraft/shared.js: st.prepare / st.show).
-     5.1 / 5.2 colour the city by the score, so they are built right after the answer before them (during the
-     1.5 s trip to the next page); an alley is built for the most likely major and rebuilt if the answer changes it.
+     5.1 / 5.2 colour the city by the score: from page 6 on they are built ahead with a guess (the player's leading
+     major), which loads the files and compiles every shader while the question is read; the answer then rebuilds
+     them with the real score in idle pieces during the 1.5 s trip, reusing those shaders (the guess is kept until
+     the rebuild is done, so its shaders stay compiled). An alley is built for the most likely major the same way.
      If a page opens before its scene is ready, the old picture shows until it is, then the paper scene fades in.
    - On those pages the old 2D vignette (V.v5/v6/v8/v13/v14) is not drawn; on 2.3 the shop pictures (js/20) stay hidden.
    - While a paper scene is up (window.PAPER_ON), #sc is not repainted once its picture is still (nothing changes there).
      Everything else is drawn at full quality; js/23-quality.js lowers quality step by step only on slow devices.
    - Picking an answer: doAct(m) also plays the scene's reaction (in an alley: the option chosen, from S.alleyPick).
-   - Fallback: no WebGL, or the files fail to load -> nothing changes, the old pictures show as before.
+   - Fallback: no WebGL, software drawing (DEV.gpu 'soft', js/00-device.js), or the files fail to load -> nothing
+     changes, the old pictures show as before. ?paper=1 forces paper scenes on even in software.
+   - The paper canvas follows the site's pixel limit for big screens (DEV.dpr, js/00-device.js).
    URL: ?fps=1 shows a frame-rate meter, ?batch=0 turns off the draw-call merging, ?paper=0 turns paper scenes off.
    Tweak: SCN_P (which page -> which scene file, and how much colour the town has there). */
 (function(){
@@ -28,6 +32,7 @@ document.getElementById('sc').after(cv);
 let lib=null,st=null,dead=false,libP=null,cur=null,tok=0,active=null,orient='',prep=null,scDirty=false;
 window.PAPER_ON=false;
 if(QS.get('paper')==='0')dead=true;   // ?paper=0: the site without paper scenes (to compare)
+if(window.DEV&&DEV.gpu==='soft'&&QS.get('paper')!=='1')dead=true;   // drawn in software: far too slow for WebGL scenes
 const mods={};
 const landNow=()=>innerWidth>=innerHeight?'land':'port';
 /* a paper page: id, scene file and build context; the key also carries the score for 5.1 / 5.2 */
@@ -37,7 +42,7 @@ function target(stage,si,m){
   return null}
 const want=()=>target(S.stage,S.si,S.alley[S.ai]);
 function loadLib(){
-  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0',adapt:()=>false})/* paper always at full resolution */;if(!st)throw new Error('no WebGL');st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{dead=true;console.warn('papercraft off:',e);throw e});
+  if(!libP)libP=import(BASE+'shared.js').then(m=>{lib=m;st=m.createStage(cv,{batch:QS.get('batch')!=='0',adapt:()=>false,dpr:m=>window.DEV?DEV.dpr(innerWidth,innerHeight,m):m})/* paper at full resolution (big screens: the pixel limit) */;if(!st)throw new Error('no WebGL');st.layout(free());return new Promise(r=>idle(()=>{try{st.warmup()}catch(e){}r(m)},2000))}).catch(e=>{dead=true;console.warn('papercraft off:',e);throw e});
   return libP}
 function loadScene(file){return mods[file]||(mods[file]=import(BASE+file).then(m=>m.default))}
 
@@ -49,7 +54,10 @@ function free(){
 /* ---- build ahead, in idle time ---- */
 function prepare(t){
   if(prep&&prep.key===t.key)return prep;
-  dropPrep();
+  /* a finished guess (same scene, other score / alley) stays alive until this build is done: its materials keep
+     the compiled shader programs, so the rebuild reuses them instead of compiling again during the page change */
+  const old=prep&&prep.slot&&prep.orient===landNow()?prep:null;
+  if(old){prep=null;old.cancelled=true}else dropPrep();
   const my={key:t.key,t,slot:null,cancelled:false,orient:landNow()};prep=my;
   my.promise=loadLib().then(()=>loadScene(t.file)).then(def=>{
     if(my.cancelled)throw new Error('cancelled');
@@ -58,6 +66,7 @@ function prepare(t){
     if(my.cancelled){st.discard(slot);throw new Error('cancelled')}
     my.slot=slot;return slot});
   my.promise.catch(()=>{if(prep===my)prep=null});
+  if(old){const free=()=>{if(st)st.discard(old.slot)};my.promise.then(free,free)}
   return my}
 function dropPrep(){if(!prep)return;prep.cancelled=true;if(prep.slot)st.discard(prep.slot);prep=null}
 /* the paper page most likely to come next (after: the answer on this page is already in S) */
@@ -76,11 +85,17 @@ function upcoming(after){
     S.picks[5]=keep;Object.assign(S.w,wk);
     const best=Object.keys(vote).sort((a,b)=>vote[b]-vote[a])[0];return best?target('alley',0,best):null}
   if(after&&(si===8||si===9))return target('scene',si+1);
+  if(si>=6&&si<=9)return guess(si<9?9:10);   // still reading: build 5.1 / 5.2 with a guessed score (files + shaders ready)
   return null}
+/* 5.1 / 5.2 as they would be if every answer still open went to the leading major */
+function guess(nx){
+  const keep=S.picks.slice(),lead=rank(nx-1)[0];
+  try{for(let k=0;k<nx;k++)if(!S.picks[k])S.picks[k]=lead;return target('scene',nx)}
+  finally{keep.forEach((v,i)=>{S.picks[i]=v})}}
 function planNext(after){
   if(dead)return;
   idle(()=>{let t;try{t=upcoming(after)}catch(e){return}if(!t)return;
-    const w=want();if(w&&!(active&&active.key===w.key))return;   // this page's own scene is still on its way: leave it be
+    const w=want();if(w&&!(active&&active.id===w.id))return;   // this page's own scene is still on its way: leave it be (by id: an answer changes 5.1's score key)
     prepare(t)},after?100:1500)}
 
 /* ---- show / leave ---- */
@@ -164,6 +179,7 @@ if(new URLSearchParams(location.search).get('fps')==='1'){
         p0={renders:P.renders,cpu:P.cpu,frames:P.frames}}
       else txt+='\npaper: off on this page';
       txt+='\nquality '+(window.QL||0)+(window.QFORCED?' (forced)':' (auto)');
+      if(window.DEV)txt+='\ngpu '+DEV.gpu+(DEV.cap?'  1080p cap':'')+(dead?'  paper off':'');
       box.textContent=txt;n=0;t0=now;worst=0}
     requestAnimationFrame(tick)})(performance.now());
 }

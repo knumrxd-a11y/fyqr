@@ -270,3 +270,30 @@ DGA ภาพวาดยักษ์คลี่ลงมาจากด้า�
   adaptation is switched off on the site, because 0.75 blurred it visibly on phones. It was tried and reverted.
 - `?quality=high` / `?quality=low` (= step 4) / `?quality=0..4` force a level. The `?fps=1` meter shows the level.
 - Measured with the CPU throttled 4x on 2.1: 21 fps at full quality, 30 at step 2, 49 at step 4.
+
+## Slow laptops (branch papercraft)
+
+- **Graphics check** (`js/00-device.js`, `WEBGL_debug_renderer_info`):
+  - Software drawing (SwiftShader, Basic Render Driver, llvmpipe) gets no paper scenes; the old pictures show.
+    `?paper=1` forces paper scenes on.
+  - A built-in chip (Intel, AMD Radeon Vega / Radeon Graphics, phones) starts at quality level 2, which looks the
+    same as full quality.
+  - A separate graphics card runs exactly as before.
+  - `?gpu=soft|igpu|dgpu` pretends to be that kind of device.
+- **Big screens:** each full-screen canvas (#cv, #sc, #paper, fx, gal, the rocks and the sun) is drawn with at most
+  ~1920x1080 pixels (`DEV.dpr`). Not on a separate card, and not with `?quality=high`.
+  A Surface Laptop 3 goes from 3.4 MP to 2.07 MP per canvas.
+- **Faster steps down:**
+  - One step after 2 s under 45 fps, 1 s under 30, or half a second under 20, then 1 s to settle.
+  - A device that is slow on every frame now counts; before, frame gaps over 250 ms were all treated as hitches.
+- **Step 5 (`?quality=low`):** no backdrop blur on the text box and the sound button; the box gets a darker tint.
+- **Shaders ready before the page change:**
+  - 5.1 / 5.2 are built ahead from page 6 on, using a guessed score.
+  - The guess is kept until the real rebuild is done, so the rebuild reuses its compiled shaders.
+  - The rebuild now starts during the trip; before, it waited for the page because the 5.1 score key changed with the answer.
+  - The warm-up also covers the unbatched shader of batched cards (used if a card is ejected mid-scene) and instanced
+    meshes with and without colours.
+  - Measured on the answer 5.1 → 5.2:
+    - before: 400 + 1900 + 1444 ms of shader compiles and the scene 3 s late
+    - after: no compiles, `paper-show` 12 ms
+- Idle building gets a slice at least every 60 ms (was 120) and uses up to 12 ms of real idle time.

@@ -37,7 +37,7 @@ function place(){const st=document.querySelector('.stage');if(!st)return;
 const _cd=cityDraw;
 cityDraw=function(sec){
   const r=_cd.apply(this,arguments);
-  if(ok&&typeof sc!=='undefined'){place();const dp=Math.min(2,devicePixelRatio||1),tr=top.getBoundingClientRect(),sr=sc.getBoundingClientRect(),
+  if(ok&&typeof sc!=='undefined'){place();const tr=top.getBoundingClientRect(),dp=DEV.dpr(tr.width,tr.height,2),sr=sc.getBoundingClientRect(),
       w=Math.round(tr.width*dp),h=Math.round(tr.height*dp);
     if(top.width!==w||top.height!==h){top.width=w;top.height=h}
     const x=sr.left-tr.left+SW/2,y=sr.top-tr.top+SY+50*SS,d=STORY*SS*(1+.015*Math.sin(sec*1.1));

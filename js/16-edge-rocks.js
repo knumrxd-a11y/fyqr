@@ -11,7 +11,7 @@ const cvs=document.createElement('canvas');cvs.id='edgerocks';cvs.setAttribute('
 cvs.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4';
 document.body.appendChild(cvs);const g=cvs.getContext('2d');
 let EW=0,EH=0;
-function rz(){const d=Math.min(1.5,devicePixelRatio||1);EW=innerWidth;EH=innerHeight;cvs.width=Math.round(EW*d);cvs.height=Math.round(EH*d);g.setTransform(d,0,0,d,0,0)}
+function rz(){const d=DEV.dpr(innerWidth,innerHeight,1.5);EW=innerWidth;EH=innerHeight;cvs.width=Math.round(EW*d);cvs.height=Math.round(EH*d);g.setTransform(d,0,0,d,0,0)}
 rz();addEventListener('resize',rz);
 const IMG=[1,2,3,4,5].map(i=>{const im=new Image();im.src='images/gal-shard-'+i+'.webp';return im});
 const R=Array.from({length:MAXSIDE*2},(_,i)=>{const r=k=>hash(i+11,k,23);return{side:i%2,slot:i>>1,img:(i*3)%5,flip:r(1)<.5,jit:r(2),h:HT[0]+r(3)*(HT[1]-HT[0]),ph:r(4)*6.283,sp:.35+r(5)*.3,amp:4+r(6)*5,tilt:(r(7)-.5)*.16,out:.3+r(8)*.2,sv:TRAVEL[0]+r(9)*(TRAVEL[1]-TRAVEL[0]),pv:r(10)*6.283,blow:BLOW[0]+r(11)*(BLOW[1]-BLOW[0]),spin:r(12)<.5?-1:1,bx:0,vx:0,rot:0,vr:0}});

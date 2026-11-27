@@ -758,17 +758,18 @@ class Batcher {
 export function runTasks(tasks, { budget = 7, cancelled = null, label = 'paper-task', urgent = null } = {}) {   // urgent(): the page is waiting, go faster
   return new Promise((resolve, reject) => {
     let i = 0, spent = 0;
-    const sched = () => (urgent && urgent() ? setTimeout(slice, 0) : window.requestIdleCallback ? requestIdleCallback(slice, { timeout: 120 }) : setTimeout(slice, 16));
-    function slice() {
+    // idle time first; a page that is never idle (a slow device) still gets a short slice every 60 ms
+    const sched = () => (urgent && urgent() ? setTimeout(slice, 0) : window.requestIdleCallback ? requestIdleCallback(slice, { timeout: 60 }) : setTimeout(slice, 16));
+    function slice(dl) {
       if (cancelled && cancelled()) { reject(new Error('cancelled')); return; }
-      const t0 = performance.now();
+      const t0 = performance.now(), room = dl && dl.timeRemaining && !dl.didTimeout ? Math.min(12, Math.max(budget, dl.timeRemaining() - 1)) : budget;
       try {
         while (i < tasks.length) {
           const ti = performance.now();
           const r = tasks[i++]();
           if (performance.now() - ti > 30) try { performance.measure(label + '#' + (i - 1), { start: ti }); } catch (e) {}
           if (r && r.then) { spent += performance.now() - t0; r.then(sched, reject); return; }
-          if (performance.now() - t0 > (urgent && urgent() ? 24 : budget)) break;
+          if (performance.now() - t0 > (urgent && urgent() ? 24 : room)) break;
         }
       } catch (e) { reject(e); return; }
       spent += performance.now() - t0;
@@ -791,7 +792,9 @@ export function createStage(canvas, opts = {}) {
   if (!renderer.getContext()) return null;
   const mobile = matchMedia('(pointer:coarse)').matches || innerWidth < 600;
   const dprMax = Math.min(mobile ? 1.25 : 1.5, devicePixelRatio || 1), dprMin = Math.min(dprMax, .75);
-  renderer.setPixelRatio(dprMax);
+  // opts.dpr(max): the site's pixel limit for big screens (js/00-device.js); re-read every frame, so it follows resizes
+  const dprTop = () => (opts.dpr ? Math.min(dprMax, opts.dpr(dprMax)) : dprMax);
+  renderer.setPixelRatio(dprTop());
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.capabilities.getMaxAnisotropy();   // first call is slow on some drivers: do it now, not in a scene build
@@ -928,8 +931,15 @@ export function createStage(canvas, opts = {}) {
         const seen = new Set(), reps = [];
         slot.root.updateMatrixWorld(true);
         slot.root.traverse(n => {
-          if (!(n.isMesh || n.isPoints || n.isLine || n.isSprite) || !n.material || n.layers.mask !== 1) return;
-          [].concat(n.material).forEach(m => { const k = m.uuid + (n.isInstancedMesh ? 'i' : '') + (n.isSkinnedMesh ? 's' : ''); if (!seen.has(k)) { seen.add(k); reps.push(n); } });
+          if (!(n.isMesh || n.isPoints || n.isLine || n.isSprite) || !n.material) return;
+          if (n.layers.mask === 1) [].concat(n.material).forEach(m => { const k = m.uuid + (n.isInstancedMesh ? 'i' : '') + (n.isSkinnedMesh ? 's' : ''); if (!seen.has(k)) { seen.add(k); reps.push(n); } });
+          // a card merged into a batch is drawn on its own again if it is ejected while the scene runs (repainted
+          // often, or its material changed): warm that unbatched shader too, once per kind of shader, not per card
+          else if (n.isMesh && !n.isInstancedMesh && !n.isSkinnedMesh && !Array.isArray(n.material)) {
+            const m = n.material, a = n.geometry.attributes;
+            const k = 'u|' + [m.type, m.transparent, m.side, !!m.map, !!m.emissiveMap, !!m.alphaMap, m.alphaTest > 0, m.vertexColors, !!a.color, !!a.uv, m.blending, m.premultipliedAlpha].join();
+            if (!seen.has(k)) { seen.add(k); reps.push(n); }
+          }
         });
         const tmp = new THREE.Scene(); tmp.add(...lights);
         // browsers with parallel shader compiling (Chrome / Edge / Firefox on desktop): compile everything off the main thread first
@@ -946,7 +956,15 @@ export function createStage(canvas, opts = {}) {
           tmp.add(o); try { renderer.render(tmp, camera); } finally { tmp.remove(o); renderer.setScissorTest(false); st._dirty = true; }
         };
         reps.forEach(n => extra.push(() => {
-          if (n.isInstancedMesh || n.isSkinnedMesh) return;
+          if (n.isSkinnedMesh) return;
+          if (n.isInstancedMesh) {   // with and without per-instance colours (paper life gets its colours mid-scene)
+            [false, true].forEach(col => {
+              const o = new THREE.InstancedMesh(n.geometry, n.material, 1); o.setMatrixAt(0, new THREE.Matrix4());
+              if (col) o.setColorAt(0, new THREE.Color(1, 1, 1));
+              o.frustumCulled = false; o.renderOrder = n.renderOrder; pix(o); o.dispose();
+            });
+            return;
+          }
           const o = n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material);
           o.frustumCulled = false; o.renderOrder = n.renderOrder; pix(o);
         }));
@@ -1040,7 +1058,7 @@ export function createStage(canvas, opts = {}) {
   function adapt(ms, target) {
     // the site's quality system (js/23) decides when the paper scene may lower its resolution (last step only)
     if (opts.lowest && opts.lowest()) { if (renderer.getPixelRatio() !== dprMin) setDpr(dprMin); return; }
-    if (opts.adapt && !opts.adapt()) { if (renderer.getPixelRatio() !== dprMax) setDpr(dprMax); aT = 0; return; }
+    if (opts.adapt && !opts.adapt()) { const top = dprTop(); if (Math.abs(renderer.getPixelRatio() - top) > .001) setDpr(top); aT = 0; return; }
     if (!aT) { aT = ms; aTicks = 0; return; }
     aTicks++;
     if (ms - aT < 1000) return;
@@ -1048,7 +1066,7 @@ export function createStage(canvas, opts = {}) {
     if (ms < aCool) return;
     const lowAt = target >= 60 ? 45 : 26, cur = renderer.getPixelRatio();
     if (fps < lowAt && cur > dprMin + .01) { setDpr(Math.max(dprMin, cur - .15)); aCool = ms + 1500; aGood = 0; }
-    else if (fps >= target * .95 && cur < dprMax - .01) { if (++aGood >= 6) { setDpr(Math.min(dprMax, cur + .1)); aGood = 0; aCool = ms + 2500; } }
+    else if (fps >= target * .95 && cur < dprTop() - .01) { if (++aGood >= 6) { setDpr(Math.min(dprTop(), cur + .1)); aGood = 0; aCool = ms + 2500; } }
     else aGood = 0;
   }
   function setDpr(v) { renderer.setPixelRatio(v); st.perf.dpr = v; if (st.free) st.layout(st.free); }

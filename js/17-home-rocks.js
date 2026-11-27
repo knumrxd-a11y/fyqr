@@ -16,7 +16,7 @@ const PHONE=[['R',-.02,.30,.42,1,.6],['S3',1.0,.33,.40,0,.6],['S1',.06,.60,.16,0
 const st=document.createElement('style');st.textContent='#homerocks{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .7s ease}body.gal #homerocks{opacity:1}';document.head.appendChild(st);
 const cvs=document.createElement('canvas');cvs.id='homerocks';cvs.setAttribute('aria-hidden','true');document.querySelector('.stage').appendChild(cvs);
 const g=cvs.getContext('2d');let HW=0,HH=0,fade=0,lx=0,ly=0,tx=0,ty=0;
-function rz(){const d=Math.min(1.5,devicePixelRatio||1);HW=innerWidth;HH=innerHeight;cvs.width=Math.round(HW*d);cvs.height=Math.round(HH*d);g.setTransform(d,0,0,d,0,0)}
+function rz(){const d=DEV.dpr(innerWidth,innerHeight,1.5);HW=innerWidth;HH=innerHeight;cvs.width=Math.round(HW*d);cvs.height=Math.round(HH*d);g.setTransform(d,0,0,d,0,0)}
 rz();addEventListener('resize',rz);
 addEventListener('pointermove',e=>{tx=(e.clientX/HW-.5)*2;ty=(e.clientY/HH-.5)*2});
 function col(c,im,x,y,h,flip,d,t,i){

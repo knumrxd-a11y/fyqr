@@ -4,7 +4,7 @@ const SCN={k:'',p:'',f:1,dn:0,am:null,at:0,al:1,tc:[20,50,58]};
 const TINT={v1:'#1c4a52',v2:'#1a4458',v3:'#1c4a52',v4:'#2a4a48',v5:'#1a5a5a',v6:'#2a4a58',v7:'#3a3a58',v8:'#4a4a30',v10:'#4a4a30',v11:'#2a3a6a',v12:'#3a3a58',v13:'#5a4a28',v14:'#5a4a28',v15:'#2a4a58',v16:'#3a2a5a'};
 const FOC={v1:40,v2:50,v3:50,v4:55,v5:50,v6:60,v7:58,v8:40,v10:55,v11:44,v12:52,v13:50,v14:48,v15:52,v16:40};
 let SAT=.3,SW=0,SH=0,SS=1,SY=48,lt2=0;
-function rsc(){const r=sc.getBoundingClientRect(),d=Math.min(1.5,devicePixelRatio||1);SW=r.width;SH=r.height;sc.width=Math.round(SW*d);sc.height=Math.round(SH*d);sx.setTransform(d,0,0,d,0,0);
+function rsc(){const r=sc.getBoundingClientRect(),d=DEV.dpr(r.width,r.height,1.5);SW=r.width;SH=r.height;sc.width=Math.round(SW*d);sc.height=Math.round(SH*d);sx.setTransform(d,0,0,d,0,0);
   const pt=parseFloat(getComputedStyle(document.getElementById('app')).paddingTop)||200;SS=Math.min(Math.max(90,pt-56)/100,SW/180)}
 addEventListener('resize',rsc);
 const Ca=(h,m)=>{const c=hx(h);if(m===undefined)return mixc(lumc(c),c,SAT);const mx=Math.max(1,...Object.values(S.w)),sh=S.w[ORDER[m]]/mx;return mixc(lumc(c),c,Math.min(1,SAT*.55+sh*.45))};

@@ -7,7 +7,7 @@ const gal=document.createElement('canvas');gal.id='gal';gal.setAttribute('aria-h
 const LY={"core": ["images/gal-core.webp", [354, 56, 363, 602]], "left": ["images/gal-left.webp", [101, 30, 296, 628]], "right": ["images/gal-right.webp", [674, 141, 187, 517]], "moon": ["images/gal-moon.webp", [489, 122, 83, 84]], "shards": [["images/gal-shard-1.webp", [940, 59, 40, 108]], ["images/gal-shard-2.webp", [581, 80, 27, 63]], ["images/gal-shard-3.webp", [857, 150, 64, 226]], ["images/gal-shard-4.webp", [453, 152, 23, 58]], ["images/gal-shard-5.webp", [854, 382, 36, 85]]]};
 const GL={W:0,H:0,fly:null,fade:0,dark:0,lt:0},CAM={x:0,y:0,tx:0,ty:0,idle:0},SP={y:0,v:0};
 const sm=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
-function rz(){const d=Math.min(1.5,devicePixelRatio||1);GL.W=innerWidth;GL.H=innerHeight;gal.width=Math.round(GL.W*d);gal.height=Math.round(GL.H*d);g.setTransform(d,0,0,d,0,0)}rz();addEventListener('resize',rz);
+function rz(){const d=DEV.dpr(innerWidth,innerHeight,1.5);GL.W=innerWidth;GL.H=innerHeight;gal.width=Math.round(GL.W*d);gal.height=Math.round(GL.H*d);g.setTransform(d,0,0,d,0,0)}rz();addEventListener('resize',rz);
 /* sprites: city layers fade out at the bottom so the city dissolves into mist instead of being cut off */
 const SPR={};let sparks=[];
 function load(k,[src,b],fade){const im=new Image();im.onload=()=>{let c=im;
