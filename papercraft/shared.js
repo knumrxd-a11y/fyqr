@@ -801,6 +801,11 @@ export function createStage(canvas, opts = {}) {
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.capabilities.getMaxAnisotropy();   // first call is slow on some drivers: do it now, not in a scene build
+  // every extension three.js asks about while building shaders, asked now (on the rules page): each first ask is a
+  // blocking round trip to the GPU, which mid-story waited behind the page's drawing for up to ~1.5 s
+  ['KHR_parallel_shader_compile', 'EXT_clip_control', 'WEBGL_multi_draw', 'WEBGL_clip_cull_distance', 'OES_texture_float_linear',
+    'EXT_color_buffer_float', 'EXT_color_buffer_half_float', 'EXT_texture_filter_anisotropic', 'WEBGL_multisampled_render_to_texture',
+    'WEBGL_render_shared_exponent'].forEach(n => { try { renderer.extensions.has(n); } catch (e) {} });
   const useBatch = opts.batch !== false;
 
   const scene = new THREE.Scene(); scene.matrixWorldAutoUpdate = false;

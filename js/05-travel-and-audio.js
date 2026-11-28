@@ -20,10 +20,20 @@ let nz=(Date.now()^0x9e3779b9)>>>0;
 function noise(ch,k){const d=A.buf.getChannelData(ch),len=A.len,i0=Math.floor(len*k/8),i1=Math.floor(len*(k+1)/8);for(let i=i0;i<i1;i++){nz=(nz*1664525+1013904223)>>>0;d[i]=(nz/2147483648-1)*Math.pow(1-i/len,2.6)}}
 let apI=0;
 function prepAudio(all){while(apI<AP.length){if(AP[apI++]()===false){apI=AP.length;return}if(!all)break}}
-(function idleAudio(){if(apI>=AP.length||A.go)return;const f=()=>{if(A.go)return;prepAudio(false);idleAudio()};
-  window.requestIdleCallback?requestIdleCallback(f,{timeout:4000}):setTimeout(f,300)})();
-function startAudio(){
+/* The sound graph is built one piece per idle moment once the player has left the home page (the rules page):
+   making the AudioContext alone takes 0.2-0.4 s, which froze the moving home page. The start button asks for the
+   sound; it starts as soon as the pieces are ready (a second or so later, on the rules page). The sound button
+   (startAudio(true)) still builds it at once. */
+let apT=0;
+function soonAudio(){if(apT||apI>=AP.length)return;apT=1;
+  (function next(){const busy=S.stage==='intro'||(window.GL&&GL.fly);
+    const go=dl=>{if(A.go)return;if(S.stage==='intro'||(window.GL&&GL.fly)){setTimeout(next,300);return}const t0=performance.now();
+      do prepAudio(false);while(apI>1&&apI<AP.length&&(dl&&dl.timeRemaining?dl.timeRemaining()>6:performance.now()-t0<6));   // small pieces: as many as fit
+      if(apI<AP.length){next();return}if(A.want)startAudio(true)};
+    busy?setTimeout(next,300):window.requestIdleCallback?requestIdleCallback(go,{timeout:300}):setTimeout(go,60)})()}
+function startAudio(now){
   if(A.go){if(A.c.state==='suspended')A.c.resume();return}
+  if(!now&&!A.ready){A.want=true;soonAudio();return}
   prepAudio(true);if(!A.ready)return;A.go=true;
   const c=A.c;if(c.state==='suspended')c.resume();
   A.nxt=c.currentTime+.1;setInterval(sched,120);
@@ -53,7 +63,7 @@ function sfx(k){
   else if(k==='finale'){[0,4,7,12,16].forEach((x,i)=>tone(72+x,t+i*.09,3,'sine',.1,.01,A.m))}
 }
 const sndBtn=document.getElementById('snd');
-sndBtn.addEventListener('click',()=>{startAudio();A.on=!A.on;sndBtn.classList.toggle('off',!A.on);sndBtn.setAttribute('aria-pressed',A.on);
+sndBtn.addEventListener('click',()=>{startAudio(true);A.on=!A.on;sndBtn.classList.toggle('off',!A.on);sndBtn.setAttribute('aria-pressed',A.on);
   if(A.c)A.m.gain.setTargetAtTime(A.on?.55:0,A.c.currentTime,.15)});
 document.addEventListener('visibilitychange',()=>{if(A.go)document.hidden?A.c.suspend():A.c.resume()});
 function burst(m){

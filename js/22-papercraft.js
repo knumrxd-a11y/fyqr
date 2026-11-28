@@ -107,6 +107,9 @@ function guess(nx){
   finally{keep.forEach((v,i)=>{S.picks[i]=v})}}
 function planNext(after){
   if(dead)return;
+  /* nothing 3D while the home page is up (making the 3D stage and its shaders froze its animation for 0.1-0.8 s):
+     it starts once the player is on the rules page (render() below calls planNext again) */
+  if(S.stage==='intro')return;
   idle(()=>{let t;try{t=upcoming(after)}catch(e){return}if(!t)return;
     const w=want();if(w&&!(active&&active.id===w.id))return;   // this page's own scene is still on its way: leave it be (by id: an answer changes 5.1's score key)
     prepare(t)},after?100:1500)}
@@ -182,7 +185,8 @@ window.drawScene=function(ms){
   const r=_ds.apply(this,arguments);if(SCN.f>=1)scDirty=false;return r};
 
 const _render=window.render;
-window.render=function(){_render.apply(this,arguments);shop();sync()};
+let begun=false;
+window.render=function(){_render.apply(this,arguments);shop();sync();if(!begun&&S.stage!=='intro'){begun=true;if(!active)planNext(false)}};
 
 const _doAct=window.doAct;
 window.doAct=function(m){_doAct.apply(this,arguments);

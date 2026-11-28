@@ -13,12 +13,17 @@
 (function(){
 const Q=new URLSearchParams(location.search);
 let name='',soft=false;
-try{
+/* the answer is kept for 7 days (per browser version): starting a WebGL context just to read the chip's name took
+   0.1-0.4 s on the first load, so later visits skip it */
+const CK='devgpu1',UA=navigator.userAgent;let kept=null;
+try{const v=JSON.parse(localStorage.getItem(CK)||'null');if(v&&v.ua===UA&&Date.now()-v.t<7*864e5)kept=v}catch(e){}
+if(kept){name=kept.name;soft=kept.soft}else try{
   const c=document.createElement('canvas');
   let gl=c.getContext('webgl',{failIfMajorPerformanceCaveat:true});   // null when the browser would draw in software
   if(!gl){gl=c.getContext('webgl');if(gl)soft=true}
   if(gl){const e=gl.getExtension('WEBGL_debug_renderer_info');name=String(gl.getParameter(e?e.UNMASKED_RENDERER_WEBGL:gl.RENDERER)||'');
-    const l=gl.getExtension('WEBGL_lose_context');if(l)l.loseContext()}
+    const l=gl.getExtension('WEBGL_lose_context');if(l)l.loseContext();
+    try{localStorage.setItem(CK,JSON.stringify({ua:UA,t:Date.now(),name,soft}))}catch(e){}}
 }catch(e){}
 let gpu='unknown';
 if(soft||/swiftshader|basic render|llvmpipe|softpipe|software/i.test(name))gpu='soft';
