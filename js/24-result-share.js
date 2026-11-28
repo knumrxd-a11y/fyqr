@@ -3,7 +3,7 @@
    - Phone / tablet (touch screen with the system share sheet): shares a story picture (1080x1920) with the link,
      so it can go to IG, LINE, Facebook and the rest. If the device cannot share files it shares the link only.
    - Computer: saves the story picture and copies the link.
-   The picture holds the card front (the major's frame, mascot and title), the title, the nickname from the pass (if any)
+   The picture holds the finished collage card front (frame, mascot, cut-out title, tape; js/13), the title, the nickname from the pass (if any)
    and the link. It is made in the background once the result page is up, so the share sheet opens straight
    away on a tap (iPhone refuses to open it if the page makes the picture first). Tweak: SITE, the layout numbers in story(). */
 (function(){
@@ -46,15 +46,30 @@ async function story(){
   const lw=540,lh=lw*logo.height/logo.width;g.drawImage(logo,cx-lw/2,90,lw,lh);
   /* card front: frame, mascot in the top cream panel, title in the bottom one */
   const x0=cx-cw/2,k1=cw/297;
-  g.save();g.shadowColor='rgba(0,0,0,.55)';g.shadowBlur=60;g.shadowOffsetY=26;g.drawImage(front,x0,cy0,cw,ch);g.restore();
+  /* hard cardboard shadow, as on the page */
+  g.save();g.globalAlpha=.55;g.fillStyle='#060312';g.beginPath();g.roundRect?g.roundRect(x0+18,cy0+26,cw,ch,cw*.0404):g.rect(x0+18,cy0+26,cw,ch);g.fill();g.restore();
+  g.drawImage(front,x0,cy0,cw,ch);
   const px=x0+17*k1,py=cy0+20*k1,pw=263*k1,ph=275*k1;
   g.save();g.beginPath();g.rect(px,py,pw,ph);g.clip();
   {let mh=ph*.92,mw=mh*mascot.width/mascot.height;if(mw>pw*.96){mw=pw*.96;mh=mw*mascot.height/mascot.width}
    g.shadowColor='rgba(0,0,0,.35)';g.shadowBlur=16;g.shadowOffsetY=8;g.drawImage(mascot,px+(pw-mw)/2,py+ph-mh,mw,mh)}
   g.restore();
-  {const bx=x0+17*k1,by=cy0+333.5*k1,bw=263*k1,bh=59.5*k1,pad=bw*.04;
-   const f=fitText(g,title,bw-pad*2,bh-14,58,2,'500',MITR);g.fillStyle='#241b2b';g.textAlign='center';g.textBaseline='middle';
-   f.L.forEach((l,i)=>g.fillText(l,bx+bw/2,by+bh/2+(i-(f.L.length-1)/2)*f.s*1.18))}
+  /* the title as the same magazine cut-outs as on the page (js/13 cardCut: same pieces, colours and tilt) */
+  {const bx=x0+17*k1,by=cy0+333.5*k1,bw=263*k1,bh=59.5*k1,padX=bw*.05,maxW=bw-padX*2,cuts=window.cardCut?cardCut(title,col):[{t:title,bg:'#fbf8ef',fg:'#1c1820',ff:MITR,fw:500,s:1,r:0,dy:0,J:[0,0,0,0,0]}];
+   const lay=f=>{const items=cuts.map(c=>{g.font=c.fw+' '+(f*c.s).toFixed(1)+'px '+c.ff;const w=g.measureText(c.t).width+f*c.s*.4;return{c,w,h:f*c.s*1.3}});
+     const rows=[];let row=[],rw=0;const gap=f*.1;
+     items.forEach(it=>{if(row.length&&rw+gap+it.w>maxW){rows.push({row,rw});row=[];rw=0}rw+=(row.length?gap:0)+it.w;row.push(it)});if(row.length)rows.push({row,rw});
+     return{rows,gap,lh:f*1.48}};
+   let f=64,L=lay(f);while(f>14&&(L.rows.length*L.lh>bh-10||L.rows.some(r=>r.rw>maxW))){f-=2;L=lay(f)}
+   let yy=by+bh/2-(L.rows.length-1)*L.lh/2;g.textAlign='center';g.textBaseline='middle';
+   L.rows.forEach(({row,rw})=>{let xx=bx+bw/2-rw/2;row.forEach(it=>{const c=it.c,w=it.w,h=it.h,J=c.J.map(v=>v/100);
+       g.save();g.translate(xx+w/2,yy+c.dy*f*c.s);g.rotate(c.r*Math.PI/180);
+       g.beginPath();g.moveTo(-w/2+J[0]*w,-h/2+J[1]*h);g.lineTo(w/2-J[2]*w,-h/2);g.lineTo(w/2,h/2-J[3]*h);g.lineTo(-w/2+J[4]*w,h/2);g.closePath();g.fillStyle=c.bg;g.fill();
+       g.font=c.fw+' '+(f*c.s).toFixed(1)+'px '+c.ff;g.fillStyle=c.fg;g.fillText(c.t,0,h*.02);g.restore();xx+=w+L.gap});yy+=L.lh})}
+  /* paper tape on two corners, as on the page */
+  {const tw=cw*.31,th=ch*.072;[[x0+cw*-.08+tw/2,cy0+ch*.032+th/2],[x0+cw*1.08-tw/2,cy0+ch*(1-.032)-th/2]].forEach(([tx,ty2])=>{
+    g.save();g.translate(tx,ty2);g.rotate(-37*Math.PI/180);const z=[[.03,0],[.97,0],[1,.16],[.97,.32],[1,.5],[.97,.68],[1,.84],[.97,1],[.03,1],[0,.84],[.03,.68],[0,.5],[.03,.32],[0,.16]];
+    g.beginPath();z.forEach(([u,v],i)=>{const X=-tw/2+u*tw,Y=-th/2+v*th;i?g.lineTo(X,Y):g.moveTo(X,Y)});g.closePath();g.fillStyle='rgba(234,226,203,.8)';g.fill();g.restore()})}
   /* under the card: who, the title, the link */
   let y=cy0+ch+90;g.textAlign='center';g.textBaseline='middle';
   g.fillStyle='#d6d0f0';g.font='400 36px '+BODY;g.fillText(nick?nick+' คือนักเดินทางแบบ':'ฉันคือนักเดินทางแบบ',cx,y);
