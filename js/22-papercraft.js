@@ -153,8 +153,16 @@ addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{
   if(o!==orient){orient=o;st.layout(free());st.mount(st.def,st.ctx);st.layout(free())}else st.layout(free())},150)});
 
 /* try-out shortcut: index.html?go=1-3 | 2-1 | 2-3 | 5-1 | 5-2 | alley-DGD (DGA AFX IGD DEN) jumps straight to that page.
-   Earlier answers are filled in round the five majors so 5.1 / 5.2 have some colour to show. */
+   Earlier answers are filled in round the five majors so 5.1 / 5.2 have some colour to show.
+   ?go=result-DGD (DGA AFX IGD DEN) opens the result page for that major; ?go=result-DGA-AFX a two-major result
+   (the first one scores one point more, so its colour is used on the card). */
 (function(){const go=new URLSearchParams(location.search).get('go');if(!go)return;
+  const rm=/^result-(DGD|DGA|AFX|IGD|DEN)(?:-(DGD|DGA|AFX|IGD|DEN))?$/.exec(go);
+  if(rm){const a=rm[1],b=rm[2]&&rm[2]!==a?rm[2]:null;
+    for(let k=0;k<11;k++){const m=b&&k%2?b:a;S.picks[k]=m;S.w[m]++}
+    S.alley=[a];S.result=calcResult();S.stage='result';
+    /* wait for the later scripts (the share button in js/24 adds to the result page) */
+    if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>render(),{once:true});else render();return}
   const SI={'1-3':2,'2-1':3,'2-3':5,'5-1':9,'5-2':10},am=/^alley-(DGD|DGA|AFX|IGD|DEN)$/.exec(go),si=am?6:SI[go];if(si===undefined)return;
   const fill=n=>{for(let k=0;k<n;k++){const m=SC[k].o[k%SC[k].o.length][0];S.picks[k]=m;S.w[m]++}};
   if(am){fill(6);S.alley=[am[1]];S.ai=0;S.stage='alley';newPerm(4)}else{fill(si);S.stage='scene';S.si=si;newPerm(5)}

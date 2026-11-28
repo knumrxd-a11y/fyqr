@@ -11,13 +11,14 @@ const im=new Image();im.src='images/card-open.webp';
 const st=document.createElement('style');st.textContent=`
 .rscene{position:relative}
 .rscene.opening .rcard{opacity:0;transform:scale(.9)}
-.rscene.opened .rcard{transition:opacity .6s ease,transform .7s cubic-bezier(.2,1.3,.4,1)}
+.rscene.opened .rcard{transition:opacity .25s ease}
 #cardopen{position:fixed;left:0;top:0;pointer-events:none;z-index:60;image-rendering:pixelated}
 body.cardopening #edgerocks{opacity:0;transition:opacity .3s}
 #edgerocks{transition:opacity .8s}`;document.head.appendChild(st);
 function play(){
   const sc0=document.querySelector('.rscene'),card=document.getElementById('rcard');if(!sc0||!card||sc0.dataset.open)return;sc0.dataset.open=1;
-  if(reduce||!im.complete||!im.naturalWidth)return;
+  /* no effect (reduced motion, or its picture is not ready): paste the card together straight away (js/13) */
+  if(reduce||!im.complete||!im.naturalWidth){window.cardAssemble&&cardAssemble();return}
   sc0.classList.add('opening');
   /* the effect sits on top of everything (fixed layer), so nothing covers or cuts it; the edge rocks step aside
      while it plays. Its card is scaled to the size of the result card (offsetHeight ignores the hide-scale) and
@@ -33,7 +34,8 @@ function play(){
   const t0=performance.now();let shown=false;
   (function tick(now){
     const t=now-t0;if(!document.body.contains(c))return;if(!document.body.contains(card)){end();return}follow();
-    if(!shown&&t>=REVEAL){shown=true;sc0.classList.add('opened');sc0.classList.remove('opening')}
+    /* hand over to the collage card (js/13): the pixel card fades out as the paper scraps start to fly in, so the card appears once */
+    if(!shown&&t>=REVEAL){shown=true;sc0.classList.add('opened');sc0.classList.remove('opening');c.style.transition='opacity .3s ease';c.style.opacity='0';window.cardAssemble&&cardAssemble()}
     if(t>=DUR){end();return}
     const f=Math.min(FR-1,Math.floor(t/DUR*FR));g.clearRect(0,0,c.width,c.height);g.globalCompositeOperation='source-over';
     g.drawImage(im,(f%COLS)*CW,Math.floor(f/COLS)*CH,CW,CH,0,0,c.width,c.height);

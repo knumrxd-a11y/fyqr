@@ -3,11 +3,11 @@
 const MAS={"DGD": "images/mascot-DGD.webp", "DGA": "images/mascot-DGA.webp", "AFX": "images/mascot-AFX.webp", "IGD": "images/mascot-IGD.webp", "DEN": "images/mascot-DEN.webp"};
 const PK={};Object.keys(MJ).forEach(k=>PK[MJ[k].prog]=k);
 const st=document.createElement('style');st.textContent=`
-.rwin{position:absolute;left:5.3%;top:4%;width:89.4%;height:71%;border-radius:4%/3%;overflow:hidden;background:radial-gradient(ellipse at 50% 62%,var(--mc) 0%,var(--md) 78%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
-.rwin .rays{position:absolute;left:50%;top:62%;width:190%;aspect-ratio:1;margin:-95% 0 0 -95%;background:repeating-conic-gradient(rgba(255,255,255,.22) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 8%,transparent 62%);mask:radial-gradient(circle,#000 8%,transparent 62%);animation:rspin 40s linear infinite}
+.rwin{position:absolute;left:5.72%;top:4.76%;width:88.55%;height:65.48%;border-radius:.8%/.6%;overflow:hidden}
+.rwin .rays{display:none;position:absolute;left:50%;top:62%;width:190%;aspect-ratio:1;margin:-95% 0 0 -95%;background:repeating-conic-gradient(rgba(255,255,255,.22) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 8%,transparent 62%);mask:radial-gradient(circle,#000 8%,transparent 62%);animation:rspin 40s linear infinite}
 @keyframes rspin{to{transform:rotate(360deg)}}
 .rwin .stars{position:absolute;inset:0}
-.rwin .stars b{position:absolute;width:var(--s);height:var(--s);background:#fff6dc;clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:rtw 2.4s ease-in-out infinite;animation-delay:var(--d);opacity:0}
+.rwin .stars b{position:absolute;width:var(--s);height:var(--s);background:var(--mc);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:rtw 2.4s ease-in-out infinite;animation-delay:var(--d);opacity:0}
 @keyframes rtw{0%,100%{opacity:0;transform:scale(.3) rotate(0)}50%{opacity:1;transform:scale(1) rotate(60deg)}}
 .rchars{position:absolute;inset:0;display:flex;justify-content:center;align-items:flex-end;transform:translateX(var(--px,0px)) rotate(var(--lean,0deg));transform-origin:50% 100%}
 .rchars img.act{animation:var(--an) .8s cubic-bezier(.3,1.4,.5,1) both,rfloat 3.2s ease-in-out .8s infinite}
@@ -22,7 +22,7 @@ const st=document.createElement('style');st.textContent=`
 .rbub:after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;margin-left:-5px;background:#fffaf0;transform:rotate(45deg)}
 .rbub.show{animation:rbub 1.5s ease both}
 @keyframes rbub{0%{opacity:0;transform:translate(-50%,10px) scale(.5)}15%{opacity:1;transform:translate(-50%,0) scale(1.06)}25%{transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-8px) scale(.96)}}
-.rhint{position:absolute;left:0;right:0;bottom:3%;text-align:center;font-size:12px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none;animation:rhint 2.2s ease-in-out 2.4s infinite;opacity:0}
+.rhint{position:absolute;left:0;right:0;bottom:3%;text-align:center;font-size:12px;color:#3a2f44;text-shadow:0 0 6px #fff0c5,0 0 3px #fff0c5;pointer-events:none;animation:rhint 2.2s ease-in-out 2.4s infinite;opacity:0}
 @keyframes rhint{0%,100%{opacity:0}50%{opacity:.95}}
 .rwin.hype .rays{animation-duration:3s}
 .rchars img{display:block;height:92%;width:auto;max-width:96%;object-fit:contain;transform-origin:50% 100%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45));animation:rpop .8s cubic-bezier(.2,1.4,.4,1) 1.3s both,rfloat 3.2s ease-in-out 2.1s infinite;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -89,8 +89,19 @@ const _r=window.render;window.render=function(){_r.apply(this,arguments);if(S.st
   setTimeout(()=>{const card=document.getElementById('rcard');if(!card)return;const w=card.querySelector('.rwin');if(!w||w.dataset.on)return;w.dataset.on=1;
     const ch=card.querySelector('.rchars'),col=MJ[S.result.m[0]].c;
     ch.querySelectorAll('img').forEach(i=>bindAct(i,w,col,S.result.m.slice().sort((x,y)=>rank(10).indexOf(x)-rank(10).indexOf(y))[0]));
-    let tl=0,cl=0,lp=0;w.addEventListener('pointermove',e=>{const r=w.getBoundingClientRect();tl=((e.clientX-r.left)/r.width-.5)*18;const n=performance.now();if((e.buttons||e.pointerType==='touch')&&n-lp>110&&!reduce){lp=n;puff(w,e.clientX-r.left,e.clientY-r.top,Math.random()<.5?col:'#fff6dc')}});w.addEventListener('pointerleave',()=>{tl=0});
-    (function loop(){if(!document.body.contains(card))return;const ry=parseFloat(card.style.getPropertyValue('--ry'))||0;cl+=(tl-cl)*.12;ch.style.setProperty('--px',(-ry*.55).toFixed(1)+'px');ch.style.setProperty('--lean',cl.toFixed(2)+'deg');requestAnimationFrame(loop)})();
+    /* parallax + lean. Both are worked out fresh each frame from where things are now, never added up:
+       - parallax follows the card's turn measured from the side that faces you (the card's --ry keeps growing by 180
+         on every flip; using it raw pushed the mascot 100px further left per flip until it left the panel)
+       - lean follows the pointer while it is over the panel and springs back to 0 when it leaves, lifts or the tab hides
+       Both are clamped so the mascot stays inside the cream panel. */
+    const PX=6,LEAN=6;
+    let tl=0,cl=0,lp=0;const rest=()=>{tl=0};
+    w.addEventListener('pointermove',e=>{const r=w.getBoundingClientRect();tl=Math.max(-LEAN,Math.min(LEAN,((e.clientX-r.left)/r.width-.5)*2*LEAN));const n=performance.now();if((e.buttons||e.pointerType==='touch')&&n-lp>110&&!reduce){lp=n;puff(w,e.clientX-r.left,e.clientY-r.top,Math.random()<.5?col:'#fff6dc')}});
+    ['pointerleave','pointerup','pointercancel'].forEach(t=>w.addEventListener(t,rest));document.addEventListener('visibilitychange',rest);
+    (function loop(){if(!document.body.contains(card)){document.removeEventListener('visibilitychange',rest);return}
+      const ry=parseFloat(card.style.getPropertyValue('--ry'))||0,rel=((ry%180)+270)%180-90;   /* -90..90 from the nearer side */
+      cl+=(tl-cl)*.12;if(Math.abs(cl)<.01)cl=0;
+      ch.style.setProperty('--px',Math.max(-PX,Math.min(PX,-rel*.3)).toFixed(1)+'px');ch.style.setProperty('--lean',Math.max(-LEAN,Math.min(LEAN,cl)).toFixed(2)+'deg');requestAnimationFrame(loop)})();
     if(!reduce)setTimeout(()=>{if(document.body.contains(w)){const r=w.getBoundingClientRect();puff(w,r.width/2,r.height*.55,col);puff(w,r.width*.3,r.height*.7,'#fff6dc');puff(w,r.width*.7,r.height*.7,'#fff6dc')}},1500);
     const rkEl=document.querySelector('.rank');if(rkEl){if('IntersectionObserver' in window){const io2=new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting){x.target.classList.add('in');io2.disconnect()}}),{threshold:.3});io2.observe(rkEl)}else rkEl.classList.add('in')}
     const pm=[...document.querySelectorAll('.pmas')];
