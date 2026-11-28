@@ -3,11 +3,11 @@
 const MAS={"DGD": "images/mascot-DGD.webp", "DGA": "images/mascot-DGA.webp", "AFX": "images/mascot-AFX.webp", "IGD": "images/mascot-IGD.webp", "DEN": "images/mascot-DEN.webp"};
 const PK={};Object.keys(MJ).forEach(k=>PK[MJ[k].prog]=k);
 const st=document.createElement('style');st.textContent=`
-.rwin{position:absolute;left:5.3%;top:4%;width:89.4%;height:71%;border-radius:4%/3%;overflow:hidden;background:radial-gradient(ellipse at 50% 62%,var(--mc) 0%,var(--md) 78%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
-.rwin .rays{position:absolute;left:50%;top:62%;width:190%;aspect-ratio:1;margin:-95% 0 0 -95%;background:repeating-conic-gradient(rgba(255,255,255,.22) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 8%,transparent 62%);mask:radial-gradient(circle,#000 8%,transparent 62%);animation:rspin 40s linear infinite}
+.rwin{position:absolute;left:5.72%;top:4.76%;width:88.55%;height:65.48%;border-radius:.8%/.6%;overflow:hidden}
+.rwin .rays{display:none;position:absolute;left:50%;top:62%;width:190%;aspect-ratio:1;margin:-95% 0 0 -95%;background:repeating-conic-gradient(rgba(255,255,255,.22) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 8%,transparent 62%);mask:radial-gradient(circle,#000 8%,transparent 62%);animation:rspin 40s linear infinite}
 @keyframes rspin{to{transform:rotate(360deg)}}
 .rwin .stars{position:absolute;inset:0}
-.rwin .stars b{position:absolute;width:var(--s);height:var(--s);background:#fff6dc;clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:rtw 2.4s ease-in-out infinite;animation-delay:var(--d);opacity:0}
+.rwin .stars b{position:absolute;width:var(--s);height:var(--s);background:var(--mc);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:rtw 2.4s ease-in-out infinite;animation-delay:var(--d);opacity:0}
 @keyframes rtw{0%,100%{opacity:0;transform:scale(.3) rotate(0)}50%{opacity:1;transform:scale(1) rotate(60deg)}}
 .rchars{position:absolute;inset:0;display:flex;justify-content:center;align-items:flex-end;transform:translateX(var(--px,0px)) rotate(var(--lean,0deg));transform-origin:50% 100%}
 .rchars img.act{animation:var(--an) .8s cubic-bezier(.3,1.4,.5,1) both,rfloat 3.2s ease-in-out .8s infinite}
@@ -22,7 +22,7 @@ const st=document.createElement('style');st.textContent=`
 .rbub:after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;margin-left:-5px;background:#fffaf0;transform:rotate(45deg)}
 .rbub.show{animation:rbub 1.5s ease both}
 @keyframes rbub{0%{opacity:0;transform:translate(-50%,10px) scale(.5)}15%{opacity:1;transform:translate(-50%,0) scale(1.06)}25%{transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-8px) scale(.96)}}
-.rhint{position:absolute;left:0;right:0;bottom:3%;text-align:center;font-size:12px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none;animation:rhint 2.2s ease-in-out 2.4s infinite;opacity:0}
+.rhint{position:absolute;left:0;right:0;bottom:3%;text-align:center;font-size:12px;color:#3a2f44;text-shadow:0 0 6px #fff0c5,0 0 3px #fff0c5;pointer-events:none;animation:rhint 2.2s ease-in-out 2.4s infinite;opacity:0}
 @keyframes rhint{0%,100%{opacity:0}50%{opacity:.95}}
 .rwin.hype .rays{animation-duration:3s}
 .rchars img{display:block;height:92%;width:auto;max-width:96%;object-fit:contain;transform-origin:50% 100%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45));animation:rpop .8s cubic-bezier(.2,1.4,.4,1) 1.3s both,rfloat 3.2s ease-in-out 2.1s infinite;cursor:pointer;-webkit-tap-highlight-color:transparent}
