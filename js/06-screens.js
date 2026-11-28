@@ -61,6 +61,6 @@ function resultHTML(){
   const rk=rank(10);r.m.slice().sort((x,y)=>rk.indexOf(x)-rk.indexOf(y)).forEach(m=>{
     h+='<div class="block"><h3 style="color:'+MJ[m].c+'">อาชีพที่เกี่ยวข้อง</h3>'+chipsFor(m)+'<div class="note">ตัวสีคืออาชีพที่ขึ้นก่อนจากคำตอบในย่านของเธอ</div><p>เรียนได้ที่ สาขา <b>'+MJ[m].prog+'</b></p></div>';
   });
-  h+='<div class="block"><h3>ไม่ว่าจะเป็นนักเดินทางแบบไหน เมืองนี้ยังมีที่ว่างรออยู่</h3><div class="btn-row"><button type="button" class="btn" data-act="subscribe">สมัครสมาชิก</button><button type="button" class="btn ghost" data-act="copy">คัดลอกผลของฉัน</button><button type="button" class="btn ghost" data-act="again">เล่นอีกครั้ง</button></div><div class="note" id="msg" role="status"></div></div>';
+  h+='<div class="block"><h3>ไม่ว่าจะเป็นนักเดินทางแบบไหน เมืองนี้ยังมีที่ว่างรออยู่</h3><p>สมัครสมาชิก เพื่อรับข่าวกิจกรรมของ SDM และข้อมูลทุนการศึกษาก่อนใคร</p><div class="btn-row"><a class="btn" href="https://www.spu.ac.th/quota70-1/" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">สมัครสมาชิก</a><button type="button" class="btn ghost" data-act="copy">คัดลอกผลของฉัน</button><button type="button" class="btn ghost" data-act="again">เล่นอีกครั้ง</button></div><div class="note" id="msg" role="status"></div></div>';
   return h;
 }

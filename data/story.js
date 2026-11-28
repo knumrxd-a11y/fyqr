@@ -1,14 +1,14 @@
 const ORDER=['DGD','DGA','AFX','IGD','DEN'];
 const MJ={
-  DGD:{c:'#9A7BFF',prog:'Digital Graphic Design',single:'นักออกแบบประจำเมือง',blurb:'ภาพลักษณ์ใหม่ที่เธอออกแบบทำให้ทั้งเมืองมีหน้าตาเป็นของตัวเอง ไม่มีใครสับสนอีกแล้วว่าที่นี่คือที่ไหน',
+  DGD:{c:'#9A7BFF',prog:'Digital Graphic Design',single:'นักสร้างอัตลักษณ์แห่งธานี',blurb:'ภาพลักษณ์ใหม่ที่เธอออกแบบทำให้ทั้งเมืองมีหน้าตาเป็นของตัวเอง ไม่มีใครสับสนอีกแล้วว่าที่นี่คือที่ไหน',
     jobs:['Graphic Designer','Brand Identity Designer','Art Director','UI Designer','Packaging Designer','Editorial Designer','Social Media Designer','Motion Graphic Designer','Poster / Key Visual Designer','Creative Director']},
-  DGA:{c:'#F25AA6',prog:'Digital Arts',single:'นักเสกจินตนาการ',blurb:'ภาพวาดของเธอคือสีแรกที่ย้อมเมืองให้กลับมามีชีวิต ทุกคนเงยหน้ามองแล้วพูดตรงกันว่า “นี่แหละโลกที่เราเคยฝันถึง”',
+  DGA:{c:'#F25AA6',prog:'Digital Arts',single:'นักรังสรรค์จินตนาการ',blurb:'ภาพวาดของเธอคือสีแรกที่ย้อมเมืองให้กลับมามีชีวิต ทุกคนเงยหน้ามองแล้วพูดตรงกันว่า “นี่แหละโลกที่เราเคยฝันถึง”',
     jobs:['Illustrator','Concept Artist','Character Designer','Webtoon / Comic Artist','Storyboard Artist','Background Artist','Art Toy Designer','Sticker / LINE Creator',"Children's Book Illustrator",'Visual Development Artist']},
-  AFX:{c:'#F59A3B',prog:'Computer Animation and Visual Effects',single:'นักปั้นภาพให้มีชีวิต',blurb:'ภาพเคลื่อนไหวของเธอทำให้ท้องฟ้าสว่างวาบ ไม่มีใครเชื่อว่าทั้งหมดนี้เป็นฝีมือคนคนเดียว',
+  AFX:{c:'#F59A3B',prog:'Computer Animation and Visual Effects',single:'ผู้มอบชีวิตแด่ภาพ',blurb:'ภาพเคลื่อนไหวของเธอทำให้ท้องฟ้าสว่างวาบ ไม่มีใครเชื่อว่าทั้งหมดนี้เป็นฝีมือคนคนเดียว',
     jobs:['3D Animator','3D Modeler','VFX Artist','Compositor','Rigging Artist','Lighting Artist','Texture Artist','Motion Capture Artist','Layout / Previs Artist','Visual Effects Supervisor']},
-  IGD:{c:'#3BCB7E',prog:'Interactive and Game Design',single:'นักสร้างสนามเล่น',blurb:'ทั้งเมืองกลายเป็นสนามเล่นของเธอ ทุกคนหัวเราะ ตื่นเต้น และไม่มีใครอยากให้เกมจบ',
+  IGD:{c:'#3BCB7E',prog:'Interactive and Game Design',single:'นักสร้างเป้าหมายแห่งเกม',blurb:'ทั้งเมืองกลายเป็นสนามเล่นของเธอ ทุกคนหัวเราะ ตื่นเต้น และไม่มีใครอยากให้เกมจบ',
     jobs:['Game Designer','Level Designer','Game Artist','UI/UX Designer for Games','VR / AR Designer','Game Producer','Narrative Designer','Technical Artist','Playtest Designer','Esports Content Producer']},
-  DEN:{c:'#4BA3F5',prog:'Digital Entertainment',single:'นักรวมใจคนทั้งเมือง',blurb:'เธอไม่ได้ขึ้นเวทีคนเดียว เธอทำให้ทั้งเมืองได้ขึ้นเวทีไปพร้อมกัน',
+  DEN:{c:'#4BA3F5',prog:'Digital Entertainment',single:'ผู้รวมใจให้เป็นหนึ่ง',blurb:'เธอไม่ได้ขึ้นเวทีคนเดียว เธอทำให้ทั้งเมืองได้ขึ้นเวทีไปพร้อมกัน',
     jobs:['Content Creator','Event / Show Producer','Streaming Producer','VTuber / Virtual Talent Producer','Entertainment Marketer','Social Media Manager','Video Producer','Community Manager','Scriptwriter','Brand Experience Designer']}
 };
 const MIX={'DGD+DGA':'นักออกแบบที่เล่าเรื่องด้วยภาพวาด','DGD+AFX':'นักออกแบบที่ทำให้ภาพขยับ','DGD+IGD':'นักออกแบบประสบการณ์','DGD+DEN':'นักออกแบบที่เล่าเรื่องเก่ง','DGA+AFX':'นักวาดที่ทำให้ภาพมีชีวิต','DGA+IGD':'นักวาดโลกของเกม','DGA+DEN':'ครีเอเตอร์สายวาด','AFX+IGD':'นักสร้างโลกเสมือนจริง','AFX+DEN':'นักเล่าเรื่องด้วยภาพยนตร์','IGD+DEN':'นักสร้างสนามเล่นให้คนมารวมกัน'};
