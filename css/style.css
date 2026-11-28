@@ -134,3 +134,13 @@ body.qa #screen:has(.opt.picked:disabled){opacity:.22;pointer-events:none}
   body:not(.gal):not(.qa) #app{padding-top:clamp(300px,50vh,480px);padding-top:clamp(300px,50dvh,480px)}
   body.qa #app{padding-top:clamp(330px,48vh,470px);padding-top:clamp(330px,48dvh,470px)}
 }
+
+/* ===== intro logo ===== */
+/* หน้าแรก: โลโก้ IMAGINE CITY คร่อมขอบบนของกล่อง (ครึ่งบนลอยเหนือกล่อง) ใต้โลโก้เป็นรูปคำว่า "คืนสุดท้ายก่อนสีจะหายไป"
+   ข้อความ ปุ่ม อยู่กึ่งกลาง  margin-top เป็น % ของความกว้างเนื้อหากล่อง: ครึ่งความสูงโลโก้ (638/1253/2 = 25.46%) + padding บน 14px */
+body.gal #screen .intro-logo{display:block;width:100%;max-width:400px;margin:calc(-25.46% - 14px) auto 0;line-height:0;filter:drop-shadow(0 10px 22px rgba(6,3,20,.55))}
+body.gal #screen .intro-logo img,body.gal #screen .intro-sub img{display:block;width:100%;height:auto}
+body.gal #screen .intro-sub{display:block;width:78%;max-width:300px;margin:2px auto 0;line-height:0}
+body.gal #screen .tag{text-align:center;font-size:12px}
+body.gal #screen p{text-align:center}
+body.gal #screen .btn{align-self:center}
