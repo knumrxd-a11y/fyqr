@@ -1,13 +1,13 @@
 /* ===== intro: the water city floats. layered cut-outs of the artwork drift, sway and breathe; follows your finger/mouse; tap = ripple; start = fly into the river ===== */
 (function(){
-const st=document.createElement('style');st.textContent=`#gal{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .7s ease;pointer-events:none}
-body.gal #gal{opacity:1}body.gal #app{touch-action:pan-y;padding-top:50vh}
+const st=document.createElement('style');st.textContent=`#gal{position:absolute;inset:0;width:100%;height:100%;opacity:0;visibility:hidden;transition:opacity .7s ease,visibility 0s linear .7s;pointer-events:none}
+body.gal #gal{opacity:1;visibility:visible;transition:opacity .7s ease}body.gal #app{touch-action:pan-y;padding-top:50vh}
 body.gal .foot,body.gal .foot button{color:#c9d3d3}`;document.head.appendChild(st);
 const gal=document.createElement('canvas');gal.id='gal';gal.setAttribute('aria-hidden','true');document.querySelector('.stage').appendChild(gal);const g=gal.getContext('2d');
 const LY={"core": ["images/gal-core.webp", [354, 56, 363, 602]], "left": ["images/gal-left.webp", [101, 30, 296, 628]], "right": ["images/gal-right.webp", [674, 141, 187, 517]], "moon": ["images/gal-moon.webp", [489, 122, 83, 84]], "shards": [["images/gal-shard-1.webp", [940, 59, 40, 108]], ["images/gal-shard-2.webp", [581, 80, 27, 63]], ["images/gal-shard-3.webp", [857, 150, 64, 226]], ["images/gal-shard-4.webp", [453, 152, 23, 58]], ["images/gal-shard-5.webp", [854, 382, 36, 85]]]};
 const GL={W:0,H:0,fly:null,fade:0,dark:0,lt:0},CAM={x:0,y:0,tx:0,ty:0,idle:0},SP={y:0,v:0};
 const sm=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
-function rz(){const d=Math.min(1.5,devicePixelRatio||1);GL.W=innerWidth;GL.H=innerHeight;gal.width=Math.round(GL.W*d);gal.height=Math.round(GL.H*d);g.setTransform(d,0,0,d,0,0)}rz();addEventListener('resize',rz);
+function rz(){const d=DEV.dpr(innerWidth,innerHeight,1.5);GL.W=innerWidth;GL.H=innerHeight;gal.width=Math.round(GL.W*d);gal.height=Math.round(GL.H*d);g.setTransform(d,0,0,d,0,0)}rz();addEventListener('resize',rz);
 /* sprites: city layers fade out at the bottom so the city dissolves into mist instead of being cut off */
 const SPR={};let sparks=[];
 function load(k,[src,b],fade){const im=new Image();im.onload=()=>{let c=im;
@@ -33,7 +33,8 @@ window.galGo=function(cb){if(reduce){cb();return}GL.fly={t0:performance.now(),cb
 window.GL=GL;
 function frame(ms){
   const gal_=document.body.classList.contains('gal');
-  if(!gal_&&!GL.fade){requestAnimationFrame(frame);return}
+  if(!gal_&&!GL.fade){if(gal.width)gal.width=gal.height=0;requestAnimationFrame(frame);return}   // not on the home page: no memory held
+  if(!gal.width)rz();
   if(gal_){GL.fade=1;if(!GL.fly)GL.dark=0}else{GL.fade-=.016;if(GL.fade<0)GL.fade=0}
   const t=ms/1000,dt=Math.min(.05,Math.max(0,(ms-(GL.lt||ms))/1000));GL.lt=ms;const{W,H}=GL;
   let p=0,e=0;
@@ -45,7 +46,7 @@ function frame(ms){
   const s=Math.min(W*1.12/880,H*.52/622)*(1+e*1.5),px=540,py=360,
     sx0=W/2+CAM.x*-6*(1-e),sy0=H*.06+(py-34)*s+Math.sin(t*.62)*4*s*(1-e)+SP.y*.12*s*(1-e)-e*H*.02;
   /* sky */
-  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0a0820');bg.addColorStop(.55,'#171236');bg.addColorStop(1,'#241a46');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0a0820');bg.addColorStop(.55,'#171236');bg.addColorStop(1,'#241a46');g.fillStyle=bg;g.fillRect(0,0,W,H);if(window.AURORA)AURORA.draw(g,W,H,.85);
   for(const q of STR){const a=.25+.55*Math.abs(Math.sin(t*(.5+q.z)+q.p));g.fillStyle='rgba(255,240,215,'+a+')';g.fillRect(q.x*W-CAM.x*q.z*6,q.y*H-CAM.y*q.z*4,q.r,q.r)}
   g.globalCompositeOperation='lighter';
   const M=SPR.moon,mx=sx0+(M?(M.x+M.w/2-px)*s:0)-CAM.x*10*(1-e),my=sy0+(M?(M.y+M.h/2-py)*s:0)-CAM.y*6-Math.sin(t*.45)*5*s-e*H*.2,mr=Math.max(W,H)*(.2+.02*Math.sin(t*.7));
@@ -53,7 +54,9 @@ function frame(ms){
   /* moonlight falling over the city */
   g.save();g.translate(mx,my);const wob=Math.sin(t*.3)*.04;g.rotate(wob);gr=g.createLinearGradient(0,0,0,H*.7);gr.addColorStop(0,'rgba(255,205,150,.13)');gr.addColorStop(1,'rgba(255,205,150,0)');g.fillStyle=gr;g.beginPath();g.moveTo(-14,0);g.lineTo(14,0);g.lineTo(W*.32,H*.7);g.lineTo(-W*.32,H*.7);g.fill();g.restore();
   g.globalCompositeOperation='source-over';
-  if(M){g.save();g.translate(mx,my);g.scale(s*(1+.012*Math.sin(t*1.1)),s*(1+.012*Math.sin(t*1.1)));g.drawImage(M.c,-M.w/2,-M.h/2,M.w,M.h);g.restore()}
+  /* the sun: animated sprite from js/18-sun.js; falls back to the old moon picture until it has loaded */
+  if(window.SUN&&SUN.draw(g,mx,my+e*H*.2,s/(1+e*1.5),t,Math.max(0,1-e*1.8))){}  /* on start: the sun stays put and fades out */
+  else if(M){g.save();g.translate(mx,my);g.scale(s*(1+.012*Math.sin(t*1.1)),s*(1+.012*Math.sin(t*1.1)));g.drawImage(M.c,-M.w/2,-M.h/2,M.w,M.h);g.restore()}
   /* back mist */
   const mist=b=>{for(const m of MS){if(m.f!==b)continue;const x=((m.x+t*m.v)%1.4+1.4)%1.4-.2,w=W*(.7*m.s),y=m.y*H+Math.sin(t*.3+m.x*9)*6;g.globalAlpha=m.a*(1-e*.6);g.drawImage(MIST,x*W-w/2,y-w*.2,w,w*.4)}g.globalAlpha=1};
   mist(true);

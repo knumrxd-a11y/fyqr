@@ -1,7 +1,7 @@
 /* ---------- sky world (from the storyboard): floating islands, five orbiting worlds, a sea of clouds, one guiding star ---------- */
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 let W=0,H=0;
-function resize(){const r=cv.getBoundingClientRect(),d=Math.min(innerWidth<600?1.25:1.5,devicePixelRatio||1);W=r.width;H=r.height;cv.width=Math.round(W*d);cv.height=Math.round(H*d);ctx.setTransform(d,0,0,d,0,0);if(reduce)draw(0)}
+function resize(){const r=cv.getBoundingClientRect(),d=DEV.dpr(r.width,r.height,window.QL>=4?1:innerWidth<600?1.25:1.5);W=r.width;H=r.height;cv.width=Math.round(W*d);cv.height=Math.round(H*d);ctx.setTransform(d,0,0,d,0,0);if(reduce)draw(0)}
 addEventListener('resize',resize);
 function rng(s){return()=>(s=(s*1664525+1013904223)>>>0)/4294967296}
 const R=rng(11),BLD=[],cam={z:0},M={boost:0,tb:0,kick:0};

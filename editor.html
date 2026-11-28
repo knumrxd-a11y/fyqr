@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>แก้เนื้อหา · Imagine City</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/editor.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">แก้เนื้อหา <b>Imagine City</b></div>
+  <select id="page" aria-label="เลือกหน้าที่จะแก้"></select>
+  <button type="button" id="chgBtn" class="pill">แก้ไปแล้ว <b id="chgN">0</b> จุด</button>
+  <span class="grow"></span>
+  <button type="button" id="resetAll" class="ghost">ล้างที่แก้ทั้งหมด</button>
+  <a href="index.html" class="ghost btnlink">เล่นเกม</a>
+  <button type="button" id="dl" class="main">คัดลอก story.js</button>
+</header>
+<div class="wrap">
+  <section class="edit" id="form" aria-label="ช่องแก้ไข"></section>
+  <section class="prev" aria-label="พรีวิว">
+    <div class="prevbar">
+      <span>พรีวิวสด</span>
+      <label><input type="radio" name="dev" value="phone" checked> มือถือ</label>
+      <label><input type="radio" name="dev" value="wide"> เต็มจอ</label>
+      <button type="button" id="reload" class="ghost sm">โหลดพรีวิวใหม่</button>
+    </div>
+    <div class="device" id="device"><iframe id="frame" src="index.html" title="พรีวิวเกม"></iframe></div>
+  </section>
+</div>
+<aside id="chgPanel" class="panel" hidden>
+  <div class="panel-head"><b>สิ่งที่แก้ไป</b><button type="button" id="chgClose" class="ghost sm">ปิด</button></div>
+  <div id="chgList"></div>
+</aside>
+<aside id="outPanel" class="panel" hidden>
+  <div class="panel-head"><b>story.js ฉบับใหม่</b><button type="button" id="outClose" class="ghost sm">ปิด</button></div>
+  <p class="hint">คัดลอกข้อความทั้งหมดนี้ไปวางทับในไฟล์ data/story.js</p>
+  <textarea id="outText" readonly spellcheck="false"></textarea>
+</aside>
+<div id="toast" role="status"></div>
+<script src="data/story.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>

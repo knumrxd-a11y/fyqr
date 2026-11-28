@@ -42,11 +42,14 @@ function buildComps(d,w,h,TH){
 CI.src=CITYSRC;
 function cityBox(W,H,bo,fx){const w=CL.w,h=CL.h,s=Math.min(W*1.25/w,H*.56/h)*(1+bo*.07),bw=w*s,bh=h*s;return{s,bw,bh,x:W/2-bw/2+(guide.x-.5)*W*.05*fx,y:H*.62-bh}}
 function cityDraw(sec,bo,pr){
-  if(!CL)return;const c=ctx,B=cityBox(W,H,bo,1),fl=Math.sin(sec*.4)*3,y=B.y+fl;
-  const gl=c.createRadialGradient(W/2,y+B.bh*.5,0,W/2,y+B.bh*.5,B.bw*.7);gl.addColorStop(0,'rgba(120,90,220,.28)');gl.addColorStop(1,'rgba(120,90,220,0)');c.fillStyle=gl;c.fillRect(0,0,W,H);
+  if(!CL||PT.off('city'))return;const p0=PT.b();try{cityDraw0(sec,bo,pr)}finally{PT.e('city',p0)}}
+function cityDraw0(sec,bo,pr){const c=ctx,B=cityBox(W,H,bo,1),fl=Math.sin(sec*.4)*3,y=B.y+fl;
+  const gl=c.createRadialGradient(W/2,y+B.bh*.5,0,W/2,y+B.bh*.5,B.bw*.7);gl.addColorStop(0,'rgba(120,90,220,.28)');gl.addColorStop(1,'rgba(120,90,220,0)');c.fillStyle=gl;
+  {const r0=B.bw*.7,cy=y+B.bh*.5,x0=Math.max(0,W/2-r0),y0=Math.max(0,cy-r0),x1=Math.min(W,W/2+r0),y1=Math.min(H,cy+r0);if(x1>x0&&y1>y0)c.fillRect(x0,y0,x1-x0,y1-y0)}
   if(CL.comps){const s=B.s;
     for(const o of CL.comps){const d=o.d,ph=o.ph,ox=Math.sin(sec*.27+ph)*o.amp*s*.8+SCAM.x*W*(d-.5)*.7+(guide.x-.5)*W*.05*(d-.3),oy=Math.sin(sec*.41+ph*1.7)*o.amp*s+SCAM.y*H*(d-.5)*.45,zc=1+(SCAM.z-1)*(d-.5)*.55+bo*.04*d,
       kc=o.k<5?Math.min(1,PLN[o.k].cur+PLN[o.k].flash*.4):Math.min(1,pr*.95),fl=o.k<5?PLN[o.k].flash:0;
+      if(o.moon&&window.SUN&&SUN.ready())continue;  /* moons are hidden: the sun is drawn in the middle of the sky instead (js/18-sun.js) */
       c.save();c.translate(B.x+(o.x+o.w/2)*s+ox,y+(o.y+o.h/2)*s+oy);c.rotate(Math.sin(sec*.3+ph)*o.rot);c.scale(zc,zc);
       const dw=o.w*s,dh=o.h*s;c.drawImage(o.gr,-dw/2,-dh/2,dw,dh);
       if(kc>.01){c.globalAlpha=kc;c.drawImage(o.co,-dw/2,-dh/2,dw,dh)}

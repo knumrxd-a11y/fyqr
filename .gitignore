@@ -155,3 +155,9 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# papercraft: test shots, the test gallery page and three.js sources (the site loads vendor/three.min.js)
+papercraft/shots/
+papercraft/index.html
+papercraft/vendor/three.module.js
+papercraft/vendor/three.core.js
