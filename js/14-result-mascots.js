@@ -89,8 +89,19 @@ const _r=window.render;window.render=function(){_r.apply(this,arguments);if(S.st
   setTimeout(()=>{const card=document.getElementById('rcard');if(!card)return;const w=card.querySelector('.rwin');if(!w||w.dataset.on)return;w.dataset.on=1;
     const ch=card.querySelector('.rchars'),col=MJ[S.result.m[0]].c;
     ch.querySelectorAll('img').forEach(i=>bindAct(i,w,col,S.result.m.slice().sort((x,y)=>rank(10).indexOf(x)-rank(10).indexOf(y))[0]));
-    let tl=0,cl=0,lp=0;w.addEventListener('pointermove',e=>{const r=w.getBoundingClientRect();tl=((e.clientX-r.left)/r.width-.5)*18;const n=performance.now();if((e.buttons||e.pointerType==='touch')&&n-lp>110&&!reduce){lp=n;puff(w,e.clientX-r.left,e.clientY-r.top,Math.random()<.5?col:'#fff6dc')}});w.addEventListener('pointerleave',()=>{tl=0});
-    (function loop(){if(!document.body.contains(card))return;const ry=parseFloat(card.style.getPropertyValue('--ry'))||0;cl+=(tl-cl)*.12;ch.style.setProperty('--px',(-ry*.55).toFixed(1)+'px');ch.style.setProperty('--lean',cl.toFixed(2)+'deg');requestAnimationFrame(loop)})();
+    /* parallax + lean. Both are worked out fresh each frame from where things are now, never added up:
+       - parallax follows the card's turn measured from the side that faces you (the card's --ry keeps growing by 180
+         on every flip; using it raw pushed the mascot 100px further left per flip until it left the panel)
+       - lean follows the pointer while it is over the panel and springs back to 0 when it leaves, lifts or the tab hides
+       Both are clamped so the mascot stays inside the cream panel. */
+    const PX=6,LEAN=6;
+    let tl=0,cl=0,lp=0;const rest=()=>{tl=0};
+    w.addEventListener('pointermove',e=>{const r=w.getBoundingClientRect();tl=Math.max(-LEAN,Math.min(LEAN,((e.clientX-r.left)/r.width-.5)*2*LEAN));const n=performance.now();if((e.buttons||e.pointerType==='touch')&&n-lp>110&&!reduce){lp=n;puff(w,e.clientX-r.left,e.clientY-r.top,Math.random()<.5?col:'#fff6dc')}});
+    ['pointerleave','pointerup','pointercancel'].forEach(t=>w.addEventListener(t,rest));document.addEventListener('visibilitychange',rest);
+    (function loop(){if(!document.body.contains(card)){document.removeEventListener('visibilitychange',rest);return}
+      const ry=parseFloat(card.style.getPropertyValue('--ry'))||0,rel=((ry%180)+270)%180-90;   /* -90..90 from the nearer side */
+      cl+=(tl-cl)*.12;if(Math.abs(cl)<.01)cl=0;
+      ch.style.setProperty('--px',Math.max(-PX,Math.min(PX,-rel*.3)).toFixed(1)+'px');ch.style.setProperty('--lean',Math.max(-LEAN,Math.min(LEAN,cl)).toFixed(2)+'deg');requestAnimationFrame(loop)})();
     if(!reduce)setTimeout(()=>{if(document.body.contains(w)){const r=w.getBoundingClientRect();puff(w,r.width/2,r.height*.55,col);puff(w,r.width*.3,r.height*.7,'#fff6dc');puff(w,r.width*.7,r.height*.7,'#fff6dc')}},1500);
     const rkEl=document.querySelector('.rank');if(rkEl){if('IntersectionObserver' in window){const io2=new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting){x.target.classList.add('in');io2.disconnect()}}),{threshold:.3});io2.observe(rkEl)}else rkEl.classList.add('in')}
     const pm=[...document.querySelectorAll('.pmas')];
