@@ -10,14 +10,18 @@ const sm=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
 function rz(){const d=DEV.dpr(innerWidth,innerHeight,1.5);GL.W=innerWidth;GL.H=innerHeight;gal.width=Math.round(GL.W*d);gal.height=Math.round(GL.H*d);g.setTransform(d,0,0,d,0,0)}rz();addEventListener('resize',rz);
 /* sprites: city layers fade out at the bottom so the city dissolves into mist instead of being cut off */
 const SPR={};let sparks=[];
-function load(k,[src,b],fade){const im=new Image();im.onload=()=>{let c=im;
-  if(fade){c=document.createElement('canvas');c.width=b[2];c.height=b[3];const x=c.getContext('2d');x.drawImage(im,0,0);x.globalCompositeOperation='destination-out';
-    const y0=(470-b[1])/b[3],gr=x.createLinearGradient(0,0,0,b[3]);gr.addColorStop(Math.max(0,y0),'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,1)');x.fillStyle=gr;x.fillRect(0,0,b[2],b[3])}
+/* images are decoded off the main thread first (img.decode); the spark points are read from a CPU-side copy
+   (reading the shown canvas back from the graphics chip froze the home page for ~0.4-0.7 s) */
+function load(k,[src,b],fade){const im=new Image();im.onload=()=>{(im.decode?im.decode():Promise.resolve()).catch(()=>{}).then(()=>ready(k,b,fade,im))};im.src=src}
+function faded(im,b,o){const c=document.createElement('canvas');c.width=b[2];c.height=b[3];const x=c.getContext('2d',o);x.drawImage(im,0,0);x.globalCompositeOperation='destination-out';
+    const y0=(470-b[1])/b[3],gr=x.createLinearGradient(0,0,0,b[3]);gr.addColorStop(Math.max(0,y0),'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,1)');x.fillStyle=gr;x.fillRect(0,0,b[2],b[3]);return c}
+function ready(k,b,fade,im){let c=im;
+  if(fade)c=faded(im,b);
   SPR[k]={c,x:b[0],y:b[1],w:b[2],h:b[3]};
-  if(k==='core'){const x=c.getContext('2d'),dd=x.getImageData(0,0,b[2],b[3]).data,pts=[];
+  if(k==='core'){const cc=fade?faded(im,b,{willReadFrequently:true}):c,x=cc.getContext('2d',{willReadFrequently:true}),dd=x.getImageData(0,0,b[2],b[3]).data,pts=[];
     for(let i=0;i<dd.length;i+=4){if(dd[i+3]>220&&dd[i]*.3+dd[i+1]*.59+dd[i+2]*.11>185)pts.push(i/4)}
     for(let n=0;n<110&&pts.length;n++){const p=pts[Math.floor(Math.random()*pts.length)];sparks.push({x:b[0]+p%b[2],y:b[1]+Math.floor(p/b[2]),ph:Math.random()*6.3,sp:.6+Math.random()*1.6,r:.8+Math.random()*1.8})}}
-};im.src=src}
+}
 load('core',LY.core,1);load('left',LY.left,1);load('right',LY.right,1);load('moon',LY.moon,0);LY.shards.forEach((s,i)=>load('s'+i,s,0));
 const SH=[{d:.55,p:0,a:5,r:.05},{d:.4,p:1.4,a:4,r:.07},{d:1.2,p:2.2,a:7,r:.03},{d:.5,p:3.1,a:4,r:.08},{d:1.0,p:4.3,a:5,r:.05}];
 const MIST=document.createElement('canvas');MIST.width=MIST.height=128;{const x=MIST.getContext('2d'),r=x.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,'rgba(200,225,235,.5)');r.addColorStop(1,'rgba(200,225,235,0)');x.fillStyle=r;x.fillRect(0,0,128,128)}

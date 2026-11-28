@@ -790,6 +790,9 @@ export function createStage(canvas, opts = {}) {
   try { renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' }); }
   catch (e) { return null; }
   if (!renderer.getContext()) return null;
+  // no shader error checks outside ?debug=1: each one is a blocking round trip to a busy GPU (up to ~1.9 s mid-story
+  // per new shader); the shaders are fixed and tested, and compileAsync has already waited for them off the main thread
+  if (!/[?&]debug=1/.test(location.search)) renderer.debug.checkShaderErrors = false;
   const mobile = matchMedia('(pointer:coarse)').matches || innerWidth < 600;
   const dprMax = Math.min(mobile ? 1.25 : 1.5, devicePixelRatio || 1), dprMin = Math.min(dprMax, .75);
   // opts.dpr(max): the site's pixel limit for big screens (js/00-device.js); re-read every frame, so it follows resizes
@@ -943,31 +946,47 @@ export function createStage(canvas, opts = {}) {
         });
         const tmp = new THREE.Scene(); tmp.add(...lights);
         // browsers with parallel shader compiling (Chrome / Edge / Firefox on desktop): compile everything off the main thread first
-        if (renderer.extensions.has('KHR_parallel_shader_compile') && renderer.compileAsync) extra.push(() => {
+        // one object per task (compiling them all in one call was ~0.5 s of shader-text work in a single freeze);
+        // the GPU side runs in parallel and the last task waits for all of it
+        if (renderer.extensions.has('KHR_parallel_shader_compile') && renderer.compileAsync) {
           const all = new THREE.Scene(); all.add(...lights.map(l => l.clone()));
-          const proxies = reps.filter(n => !n.isInstancedMesh && !n.isSkinnedMesh).map(n => n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material));
-          proxies.forEach(o => all.add(o));
-          const bs = slot.batch ? slot.batch.batches.map(b => [b, b.parent]) : []; bs.forEach(([b]) => all.add(b));
-          const back = () => { bs.forEach(([b, par]) => par && par.add(b)); proxies.forEach(o => o.removeFromParent()); };
-          return renderer.compileAsync(all, camera).then(back, back);
-        });
+          const objs = reps.filter(n => !n.isInstancedMesh && !n.isSkinnedMesh).map(n => n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material));
+          if (slot.batch) objs.push(...slot.batch.batches);
+          const waits = [];
+          objs.forEach(o => extra.push(() => {
+            const par0 = o.parent; all.add(o);
+            try { waits.push(renderer.compileAsync(all, camera).catch(() => {})); } finally { all.remove(o); if (par0) par0.add(o); }
+          }));
+          extra.push(() => Promise.all(waits));
+        }
         const pix = (o) => {
           renderer.setScissorTest(true); renderer.setScissor(0, 0, 1, 1);
           tmp.add(o); try { renderer.render(tmp, camera); } finally { tmp.remove(o); renderer.setScissorTest(false); st._dirty = true; }
         };
-        reps.forEach(n => extra.push(() => {
+        // with parallel compiling, each warm-up shader is first compiled off the main thread (compileAsync waits for
+        // it without blocking), so the one-pixel draw that follows only links a finished program: drawing straight
+        // away made the browser compile on the main thread and froze the page for up to ~1.3 s mid-story
+        const par = renderer.extensions.has('KHR_parallel_shader_compile') && renderer.compileAsync;
+        const warm = (o, done) => {
+          if (!par) { pix(o); if (done) done(); return; }
+          tmp.add(o); let p; try { p = renderer.compileAsync(tmp, camera); } finally { tmp.remove(o); }
+          return p.then(() => { try { pix(o); } catch (e) {} if (done) done(); }, () => { if (done) done(); });
+        };
+        reps.forEach(n => {
           if (n.isSkinnedMesh) return;
           if (n.isInstancedMesh) {   // with and without per-instance colours (paper life gets its colours mid-scene)
-            [false, true].forEach(col => {
+            [false, true].forEach(col => extra.push(() => {
               const o = new THREE.InstancedMesh(n.geometry, n.material, 1); o.setMatrixAt(0, new THREE.Matrix4());
               if (col) o.setColorAt(0, new THREE.Color(1, 1, 1));
-              o.frustumCulled = false; o.renderOrder = n.renderOrder; pix(o); o.dispose();
-            });
+              o.frustumCulled = false; o.renderOrder = n.renderOrder; return warm(o, () => o.dispose());
+            }));
             return;
           }
-          const o = n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material);
-          o.frustumCulled = false; o.renderOrder = n.renderOrder; pix(o);
-        }));
+          extra.push(() => {
+            const o = n.isSprite ? new THREE.Sprite(n.material) : new n.constructor(n.geometry, n.material);
+            o.frustumCulled = false; o.renderOrder = n.renderOrder; return warm(o);
+          });
+        });
         if (slot.batch) slot.batch.batches.forEach(b => extra.push(() => {
           const par = b.parent, pc = b.perObjectFrustumCulled; b.perObjectFrustumCulled = false;
           pix(b); b.perObjectFrustumCulled = pc; if (par) par.add(b);

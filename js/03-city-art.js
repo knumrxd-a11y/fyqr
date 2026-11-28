@@ -2,42 +2,49 @@
 const CITYSRC='images/city.webp';
 let CL=null;const CI=new Image();
 function hueOf(c){const[r,g,b]=c.map(v=>v/255),mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;if(!d)return 0;let h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return(h*60+360)%360}
-CI.onload=()=>{const w=CI.width,h=CI.height,mk=()=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c},sc0=mk(),sg=sc0.getContext('2d');sg.drawImage(CI,0,0);
+/* The build (about 1 s of pixel work on a laptop) runs in slices of ~8 ms between frames instead of one long freeze,
+   after the image is decoded off the main thread (img.decode). CL appears only when everything is ready, as before. */
+function slices(gen){const it=gen();(function step(){const t=performance.now();try{while(performance.now()-t<8)if(it.next().done)return}catch(e){return}setTimeout(step,0)})()}
+CI.onload=()=>{(CI.decode?CI.decode():Promise.resolve()).catch(()=>{}).then(()=>slices(cityBuild))};
+function* cityBuild(){const w=CI.width,h=CI.height,mk=()=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c},sc0=mk(),sg=sc0.getContext('2d',{willReadFrequently:true});   /* CPU-side: read back without waiting for the graphics chip */sg.drawImage(CI,0,0);
   const d=sg.getImageData(0,0,w,h).data,gr=mk(),gx=gr.getContext('2d'),gi=gx.createImageData(w,h),TH=ORDER.map(k=>hueOf(hx(MJ[k].c)));
   const L=Array.from({length:6},()=>{const c=mk(),g=c.getContext('2d');return{c,g,i:g.createImageData(w,h)}});
-  for(let p=0;p<d.length;p+=4){const a=d[p+3];if(!a)continue;const r=d[p],g=d[p+1],b=d[p+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),lum=(r*.3+g*.59+b*.11)*.78;
+  const cls=new Uint8Array(w*h).fill(255);
+  for(let p=0;p<d.length;p+=4){if(!(p&16383))yield;const a=d[p+3];if(!a)continue;const r=d[p],g=d[p+1],b=d[p+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),lum=(r*.3+g*.59+b*.11)*.78;
     gi.data[p]=gi.data[p+1]=gi.data[p+2]=lum;gi.data[p+3]=a;
     let k=5;if(mx&&(mx-mn)/mx>.28){const hh=hueOf([r,g,b]);let best=1e9;TH.forEach((t,i)=>{const e=Math.min(Math.abs(hh-t),360-Math.abs(hh-t));if(e<best){best=e;k=i}})}
+    if(a>=8)cls[p>>2]=k;   // the same class buildComps used to compute again
     const q=L[k].i.data;q[p]=r;q[p+1]=g;q[p+2]=b;q[p+3]=a}
-  gx.putImageData(gi,0,0);L.forEach(l=>l.g.putImageData(l.i,0,0));CL={gr,L,w,h};try{CL.comps=buildComps(d,w,h,TH)}catch(e){CL.comps=null}};
+  yield;
+  gx.putImageData(gi,0,0);L.forEach(l=>l.g.putImageData(l.i,0,0));let comps=null;try{comps=yield* buildComps(d,w,h,cls)}catch(e){comps=null}CL={gr,L,w,h,comps}}
 /* split the collage into its separate pieces (towers, shards, moons...) so each can drift on its own depth */
-function buildComps(d,w,h,TH){
-  const N=w*h,cls=new Uint8Array(N).fill(255);
-  for(let q=0;q<N;q++){const o=q*4;if(d[o+3]<8)continue;const r=d[o],g=d[o+1],b=d[o+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);let k=5;
-    if(mx&&(mx-mn)/mx>.28){const hh=hueOf([r,g,b]);let best=1e9;TH.forEach((t,i)=>{const e=Math.min(Math.abs(hh-t),360-Math.abs(hh-t));if(e<best){best=e;k=i}})}cls[q]=k}
+function* buildComps(d,w,h,cls){
+  const N=w*h;
   const gw=(w+1)>>1,gh=(h+1)>>1;let gc=new Uint8Array(gw*gh).fill(255);
-  for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){const cnt=[0,0,0,0,0,0];let n=0;for(let j=0;j<2;j++)for(let i=0;i<2;i++){const xx=x*2+i,yy=y*2+j;if(xx<w&&yy<h){const v=cls[yy*w+xx];if(v<6){cnt[v]++;n++}}}
-    if(n>=2){let bk=0;for(let i=1;i<6;i++)if(cnt[i]>cnt[bk])bk=i;gc[y*gw+x]=bk}}
-  for(let it=0;it<3;it++){const nx=gc.slice();for(let y=1;y<gh-1;y++)for(let x=1;x<gw-1;x++){const i=y*gw+x;if(gc[i]===255)continue;const cnt=[0,0,0,0,0,0];for(let j=-1;j<=1;j++)for(let k2=-1;k2<=1;k2++){const v=gc[i+j*gw+k2];if(v<6)cnt[v]++}
-    let bk=gc[i];for(let k3=0;k3<6;k3++)if(cnt[k3]>cnt[bk])bk=k3;nx[i]=bk}gc=nx}
+  for(let y=0;y<gh;y++){if(!(y&31))yield;for(let x=0;x<gw;x++){const cnt=[0,0,0,0,0,0];let n=0;for(let j=0;j<2;j++)for(let i=0;i<2;i++){const xx=x*2+i,yy=y*2+j;if(xx<w&&yy<h){const v=cls[yy*w+xx];if(v<6){cnt[v]++;n++}}}
+    if(n>=2){let bk=0;for(let i=1;i<6;i++)if(cnt[i]>cnt[bk])bk=i;gc[y*gw+x]=bk}}}
+  for(let it=0;it<3;it++){const nx=gc.slice();for(let y=1;y<gh-1;y++){if(!(y&31))yield;for(let x=1;x<gw-1;x++){const i=y*gw+x;if(gc[i]===255)continue;const cnt=[0,0,0,0,0,0];for(let j=-1;j<=1;j++)for(let k2=-1;k2<=1;k2++){const v=gc[i+j*gw+k2];if(v<6)cnt[v]++}
+    let bk=gc[i];for(let k3=0;k3<6;k3++)if(cnt[k3]>cnt[bk])bk=k3;nx[i]=bk}}gc=nx}
   const lab=new Int32Array(gw*gh).fill(-1),area=[],sy=[],ck=[],qu=new Int32Array(gw*gh);let nl=0;
-  for(let i0=0;i0<gw*gh;i0++){if(gc[i0]===255||lab[i0]>=0)continue;let a=0,sum=0,qh=0,qt=0;qu[qt++]=i0;lab[i0]=nl;
+  for(let i0=0;i0<gw*gh;i0++){if(!(i0&8191))yield;if(gc[i0]===255||lab[i0]>=0)continue;let a=0,sum=0,qh=0,qt=0;qu[qt++]=i0;lab[i0]=nl;
     while(qh<qt){const i=qu[qh++],x=i%gw,y=(i/gw)|0;a++;sum+=y;
       if(x>0&&lab[i-1]<0&&gc[i-1]===gc[i0]){lab[i-1]=nl;qu[qt++]=i-1}if(x<gw-1&&lab[i+1]<0&&gc[i+1]===gc[i0]){lab[i+1]=nl;qu[qt++]=i+1}
       if(y>0&&lab[i-gw]<0&&gc[i-gw]===gc[i0]){lab[i-gw]=nl;qu[qt++]=i-gw}if(y<gh-1&&lab[i+gw]<0&&gc[i+gw]===gc[i0]){lab[i+gw]=nl;qu[qt++]=i+gw}}
     area.push(a);sy.push(sum/a*2);ck.push(gc[i0]);nl++}
   const order=area.map((a,i)=>i).filter(i=>area[i]>=45).sort((a,b)=>area[b]-area[a]).slice(0,44),map=new Int32Array(nl).fill(0);order.forEach((li,j)=>map[li]=j+1);
   const nc=order.length+1,minx=new Int32Array(nc).fill(1e9),miny=new Int32Array(nc).fill(1e9),maxx=new Int32Array(nc).fill(-1),maxy=new Int32Array(nc).fill(-1),cnt=new Int32Array(nc),own=new Uint8Array(N);
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const q=y*w+x;if(cls[q]===255)continue;const cx=x>>1,cy=y>>1;let l=lab[cy*gw+cx];
+  for(let y=0;y<h;y++){if(!(y&15))yield;for(let x=0;x<w;x++){const q=y*w+x;if(cls[q]===255)continue;const cx=x>>1,cy=y>>1;let l=lab[cy*gw+cx];
     if(l<0){outer:for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const xx=cx+i,yy=cy+j;if(xx>=0&&yy>=0&&xx<gw&&yy<gh&&lab[yy*gw+xx]>=0){l=lab[yy*gw+xx];break outer}}}
-    const id=l<0?0:map[l];own[q]=id;cnt[id]++;if(x<minx[id])minx[id]=x;if(x>maxx[id])maxx[id]=x;if(y<miny[id])miny[id]=y;if(y>maxy[id])maxy[id]=y}
+    const id=l<0?0:map[l];own[q]=id;cnt[id]++;if(x<minx[id])minx[id]=x;if(x>maxx[id])maxx[id]=x;if(y<miny[id])miny[id]=y;if(y>maxy[id])maxy[id]=y}}
   const comps=[],maxA=Math.max(...order.map(l=>area[l]));
-  for(let id=0;id<nc;id++){if(!cnt[id])continue;const bw=maxx[id]-minx[id]+1,bh=maxy[id]-miny[id]+1,mk=()=>{const c=document.createElement('canvas');c.width=bw;c.height=bh;return c},gr=mk(),co=mk(),gg=gr.getContext('2d'),cg=co.getContext('2d'),gi=gg.createImageData(bw,bh),ci2=cg.createImageData(bw,bh);
+  for(let id=0;id<nc;id++){yield;if(!cnt[id])continue;const bw=maxx[id]-minx[id]+1,bh=maxy[id]-miny[id]+1,mk=()=>{const c=document.createElement('canvas');c.width=bw;c.height=bh;return c},gr=mk(),co=mk(),gg=gr.getContext('2d'),cg=co.getContext('2d'),gi=gg.createImageData(bw,bh),ci2=cg.createImageData(bw,bh);
+    let sn=0,sr=0,sg2=0,sb=0;   // colour totals of the piece, for the moon finder in js/18 (no slow read-back from the canvas)
     for(let y=0;y<bh;y++)for(let x=0;x<bw;x++){const q=(y+miny[id])*w+x+minx[id];if(own[q]!==id||cls[q]===255)continue;const o=q*4,t=(y*bw+x)*4,lum=(d[o]*.3+d[o+1]*.59+d[o+2]*.11)*.78;
-      gi.data[t]=gi.data[t+1]=gi.data[t+2]=lum;gi.data[t+3]=d[o+3];ci2.data[t]=d[o];ci2.data[t+1]=d[o+1];ci2.data[t+2]=d[o+2];ci2.data[t+3]=d[o+3]}
+      gi.data[t]=gi.data[t+1]=gi.data[t+2]=lum;gi.data[t+3]=d[o+3];ci2.data[t]=d[o];ci2.data[t+1]=d[o+1];ci2.data[t+2]=d[o+2];ci2.data[t+3]=d[o+3];
+      if(d[o+3]>8){sn++;sr+=d[o];sg2+=d[o+1];sb+=d[o+2]}}
     gg.putImageData(gi,0,0);cg.putImageData(ci2,0,0);
     const li=id?order[id-1]:-1,ar=id?area[li]/maxA:1,cyc=(miny[id]+bh/2)/h,k=id?ck[li]:5,dep=id?Math.max(.08,Math.min(1,.12+.5*cyc+.45*Math.sqrt(ar)+(Math.sin(id*12.9898)*.5)*.18)):.5;
-    comps.push({k,x:minx[id],y:miny[id],w:bw,h:bh,gr,co,d:dep,ph:id*1.913,amp:id?3+16*(1-Math.sqrt(ar)):2,rot:id?.004+.02*(1-Math.sqrt(ar)):0,base:!id})}
+    comps.push({k,x:minx[id],y:miny[id],w:bw,h:bh,gr,co,d:dep,ph:id*1.913,amp:id?3+16*(1-Math.sqrt(ar)):2,rot:id?.004+.02*(1-Math.sqrt(ar)):0,base:!id,st:[sn,sr,sg2,sb]})}
   comps.sort((a,b)=>a.d-b.d);return comps}
 CI.src=CITYSRC;
 function cityBox(W,H,bo,fx){const w=CL.w,h=CL.h,s=Math.min(W*1.25/w,H*.56/h)*(1+bo*.07),bw=w*s,bh=h*s;return{s,bw,bh,x:W/2-bw/2+(guide.x-.5)*W*.05*fx,y:H*.62-bh}}

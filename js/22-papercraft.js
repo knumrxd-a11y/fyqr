@@ -13,8 +13,12 @@
    - While a paper scene is up (window.PAPER_ON), #sc is not repainted once its picture is still (nothing changes there).
      Everything else is drawn at full quality; js/23-quality.js lowers quality step by step only on slow devices.
    - Picking an answer: doAct(m) also plays the scene's reaction (in an alley: the option chosen, from S.alleyPick).
-   - Fallback: no WebGL, software drawing (DEV.gpu 'soft', js/00-device.js), or the files fail to load -> nothing
-     changes, the old pictures show as before. ?paper=1 forces paper scenes on even in software.
+   - Devices that cannot show the 3D scenes get a picture of each scene instead, rendered from the real 3D scene at
+     full quality (papercraft/fallback/: one for landscape, one for portrait; index.json = where each sits). It floats
+     gently and glows in the colour of the major picked. Reasons (the ?fps=1 meter says which): no WebGL2, software
+     graphics (DEV.gpu 'soft', js/00-device.js), the files failed to load, or a slow device (under 20 fps for 3 s at
+     the lowest automatic quality). Devices that can show 3D always get the 3D scene. ?paper=1 forces 3D even in
+     software; ?paper=0 turns the paper scenes off (no 3D, no picture), ?paper=img shows the pictures (to compare).
    - The paper canvas follows the site's pixel limit for big screens (DEV.dpr, js/00-device.js).
    URL: ?fps=1 shows a frame-rate meter, ?batch=0 turns off the draw-call merging, ?paper=0 turns paper scenes off.
    Tweak: SCN_P (which page -> which scene file, and how much colour the town has there). */
@@ -33,7 +37,14 @@ let lib=null,st=null,dead=false,libP=null,cur=null,tok=0,active=null,orient='',p
 window.PAPER_ON=false;
 let why='';   // why the paper scenes are off (shown by the ?fps=1 meter)
 const off=r=>{dead=true;why=why||r};
-if(QS.get('paper')==='0')off('?paper=0');   // ?paper=0: the site without paper scenes (to compare)
+const noPic=QS.get('paper')==='0';
+if(noPic)off('?paper=0');   // ?paper=0: the site without paper scenes (to compare)
+if(QS.get('paper')==='img')off('?paper=img');   // the pictures instead of 3D (to compare)
+/* no WebGL2 in this browser at all; a WebGL2 that exists but will not start is caught when the 3D stage is made
+   (createStage -> null). A test context here would cost ~1 s on the home page, so none is made. */
+if(!dead&&typeof WebGL2RenderingContext==='undefined')off('no WebGL2');
+/* in-app browsers (LINE, Instagram, Facebook, Messenger): their web views often break or starve WebGL -> pictures */
+if(!dead&&QS.get('paper')!=='1'){const ia=/\bLine\/|Instagram|FBAN|FBAV|FB_IAB|FBIOS|Messenger/i.exec(navigator.userAgent||'');if(ia)off('in-app browser ('+ia[0].replace(/\/$/,'')+')')}
 if(window.DEV&&DEV.gpu==='soft'&&QS.get('paper')!=='1')off('software graphics ('+(DEV.name||'?').slice(0,40)+')');   // drawn in software: far too slow for WebGL scenes
 const mods={};
 const landNow=()=>innerWidth>=innerHeight?'land':'port';
@@ -106,26 +117,60 @@ async function sync(){
   if(key===cur)return;
   cur=key;const my=++tok;
   if(!w){leave(my);return}
-  if(dead)return;
+  if(dead){fbShow(w);return}
+  fbHide();
+  /* the 3D scene is late (slow network / device): show its picture meanwhile; the 3D scene replaces it when ready */
+  setTimeout(()=>{const n=want();if(tok===my&&!active&&!dead&&n&&n.key===key){FB.late='3D scene not ready after 5 s (picture until it is)';fbShow(w)}},5000);
   let p=prep&&prep.key===w.key?prep:prepare(w);
   try{
     await p.promise;
     if(tok!==my)return;
     if(p.orient!==landNow()){dropPrep();p=prepare(w);await p.promise;if(tok!==my)return}
     showSlot(p,w);
-  }catch(e){if(tok===my){active=null;window.PAPER_ON=false;cv.classList.remove('on')}}
+  }catch(e){if(tok===my){active=null;window.PAPER_ON=false;cv.classList.remove('on');
+    /* the 3D files or scene failed (not just a newer page change): pictures from now on, so the scene never just disappears */
+    if(!(e&&e.message==='cancelled')){off('3D failed to load ('+String(e&&e.message||e).slice(0,60)+')');cur=null;sync()}}}
 }
 function showSlot(p,w){
-  orient=landNow();st.layout(free());
+  fbHide();orient=landNow();st.layout(free());
   st.show(p.slot);if(prep===p)prep=null;
   active=w;cv.classList.add('on');window.PAPER_ON=true;scDirty=true;shop();
   planNext(false);
 }
 function leave(my){
-  active=null;window.PAPER_ON=false;shop();
+  fbHide();active=null;window.PAPER_ON=false;shop();
   if(st&&st.root){st.close();setTimeout(()=>{if(tok===my)cv.classList.remove('on')},900)}
   planNext(false)}
-function shop(){const el=document.getElementById('shopbg');if(el&&active&&S.stage==='scene'&&S.si===5)el.classList.remove('on')}
+function shop(){const el=document.getElementById('shopbg');if(el&&(active||FB.id)&&S.stage==='scene'&&S.si===5)el.classList.remove('on')}
+
+/* ---- the picture instead of 3D ---- */
+const FB={el:null,id:'',man:null,manP:null,glowT:0,late:''};
+/* the GPU drops the 3D context (driver reset, memory pressure) -> pictures from now on */
+cv.addEventListener('webglcontextlost',e=>{e.preventDefault();off('WebGL context lost');active=null;window.PAPER_ON=false;cv.classList.remove('on');cur=null;sync()});
+function fbMan(){return FB.manP||(FB.manP=fetch(BASE+'fallback/index.json').then(r=>r.json()).then(j=>FB.man=j).catch(()=>null))}
+function fbPlace(){
+  const e=FB.el;if(!e||!FB.id||!FB.man)return;const o=landNow(),m=FB.man[FB.id]&&FB.man[FB.id][o];if(!m)return;
+  const B=free(),rb=m.band,k=Math.min((B.right-B.left)/(rb[2]-rb[0]),(B.bottom-B.top)/(rb[3]-rb[1])),
+    cx=(B.left+B.right)/2+(m.box[0]+m.box[2]/2-(rb[0]+rb[2])/2)*k,cy=(B.top+B.bottom)/2+(m.box[1]+m.box[3]/2-(rb[1]+rb[3])/2)*k;
+  e.style.width=m.box[2]*k+'px';e.style.height=m.box[3]*k+'px';e.style.left=(cx-m.box[2]*k/2)+'px';e.style.top=(cy-m.box[3]*k/2)+'px'}
+function fbShow(w){
+  if(noPic)return;
+  if(!FB.el){const s=document.createElement('style');
+    s.textContent='#paperimg{position:absolute;pointer-events:none;opacity:0;transition:opacity .5s ease,filter .5s ease;animation:pfloat 7s ease-in-out infinite}#paperimg.on{opacity:1}'
+      +'#paperimg.glow{filter:drop-shadow(0 0 10px var(--gc)) drop-shadow(0 0 26px var(--gc))}'
+      +'@keyframes pfloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-6px) rotate(.25deg)}}@media (prefers-reduced-motion:reduce){#paperimg{animation:none;transition:none}}';
+    document.head.appendChild(s);FB.el=document.createElement('img');FB.el.id='paperimg';FB.el.alt='';FB.el.setAttribute('aria-hidden','true');FB.el.decoding='async';cv.after(FB.el)}
+  const my=w.id;FB.id=my;shop();
+  fbMan().then(()=>{if(FB.id!==my||!FB.man||!FB.man[my])return;const m=FB.man[my][landNow()];if(!m)return;
+    const e=FB.el;e.classList.remove('on','glow');e.onload=()=>{if(FB.id===my){fbPlace();e.classList.add('on')}};e.src=BASE+'fallback/'+m.f;if(e.complete&&e.naturalWidth)e.onload()})}
+function fbHide(){FB.id='';FB.late='';if(FB.el)FB.el.classList.remove('on','glow')}
+function fbGlow(m){if(!FB.el||!FB.id||!MJ[m])return;FB.el.style.setProperty('--gc',MJ[m].c);FB.el.classList.add('glow');clearTimeout(FB.glowT);FB.glowT=setTimeout(()=>FB.el.classList.remove('glow'),1600)}
+/* a device that stays under 20 fps at the lowest automatic quality with a 3D scene up gets the pictures from then on */
+(function(){let n=0,t0=0,bad=0;(function f(now){requestAnimationFrame(f);
+  if(dead||!active||window.QFORCED||document.hidden){t0=0;bad=0;return}if(!t0){t0=now;n=0;return}n++;if(now-t0<1000)return;
+  const fps=n*1000/(now-t0);t0=now;n=0;if((window.QL||0)>=5&&fps<20){if(++bad>=3)goSlow()}else bad=0})(0)})();
+function goSlow(){off('slow device (under 20 fps at the lowest quality)');dropPrep();active=null;window.PAPER_ON=false;cv.classList.remove('on');
+  if(st){st.frozen=true}cur=null;sync()}
 
 /* hide the old 2D vignette on the pages that now have a paper scene (only while the paper scene is up) */
 Object.values(SCN_P).forEach(p=>{const k=p[2],f=V[k];V[k]=function(t){if(active&&active.vk===k)return;return f.apply(this,arguments)}});
@@ -141,11 +186,13 @@ window.render=function(){_render.apply(this,arguments);shop();sync()};
 
 const _doAct=window.doAct;
 window.doAct=function(m){_doAct.apply(this,arguments);
+  if(FB.id)fbGlow(m);
   if(active&&st&&st.root){let i=0;if(S.stage==='alley'&&AL[m]){i=AL[m].o.findIndex(o=>o[1]===S.alleyPick[m]);if(i<0)i=0}st.react(m,i)}
   planNext(true)};
 
 let rz=0;
 addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{
+  if(FB.id){const w=want();if(w){FB.id='';fbShow(w)}}
   if(!st)return;
   const o=landNow();
   if(prep&&prep.orient!==o){const t=prep.t;dropPrep();if(!active)prepare(t)}
@@ -183,7 +230,7 @@ if(new URLSearchParams(location.search).get('fps')==='1'){
       if(P&&active){const r=(P.renders-p0.renders)/s,fr=P.frames-p0.frames,cpu=fr?(P.cpu-p0.cpu)/fr:0;
         txt+='\npaper '+r.toFixed(0)+' /s  cpu '+cpu.toFixed(1)+' ms\ncalls '+P.calls+'  tris '+P.tris+'\ndpr '+st.renderer.getPixelRatio().toFixed(2)+'  build '+Math.round(st.buildMs||0)+' ms\nscene '+active.id;
         p0={renders:P.renders,cpu:P.cpu,frames:P.frames}}
-      else txt+='\npaper: '+(why?'OFF - '+why:'not on this page');
+      else txt+='\npaper: '+(FB.id?'PICTURE - '+(why||FB.late||'?'):why?'OFF - '+why:'not on this page');
       txt+='\nquality '+(window.QL||0)+(window.QFORCED?' (forced)':' (auto)');
       if(window.DEV)txt+='\ngpu '+DEV.gpu+(DEV.cap?'  1080p cap':'');
       /* CPU ms per frame of each drawing layer (GPU work is not in these numbers: see ?off= in js/00-device.js) */

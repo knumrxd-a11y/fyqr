@@ -26,6 +26,8 @@ js/18-sun.js          หน้าแรก: ดวงอาทิตย์พ�
 js/19-aurora.js       แสงออโรราเคลื่อนไหวเป็นฉากหลังชั้นไกลสุด (images/aurora.mp4) อยู่หลังทุกอย่าง
 js/20-shop-scene.js   ฉาก 2.3 ร้านเก่าแก่ที่ใกล้ปิด: ร้านลอยเข้ามาจากซ้ายขวาประกอบฉาก (images/shop-left.webp, images/shop-right.webp)
 js/21-card-open.js    หน้าผลลัพธ์: เอฟเฟกต์เปิดการ์ดพิกเซลก่อนการ์ดผลจริงโผล่ (images/card-open.webp)
+js/22-papercraft.js   ฉากกระดาษป๊อปอัป 3D (papercraft/) + ภาพแทนเมื่อเครื่องเปิด 3D ไม่ได้ (papercraft/fallback/, ?fps=1 บอกเหตุผล)
+tools/render-paper-fallback.py  เรนเดอร์ภาพแทนของทุกฉากกระดาษจากฉาก 3D จริง
 editor.html           หน้าแก้เนื้อหา + พรีวิวสด (ใช้ js/editor.js, css/editor.css)
 images/               รูปทั้งหมด (.webp) + รูปการ์ดผลลัพธ์ `result-<รหัส>.png` ถ้ามี
 ```

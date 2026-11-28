@@ -52,5 +52,5 @@ const ISLS=Array.from({length:7},(_,i)=>({x:R(),y:.2+R()*.42,w:46+R()*90,z:.3+R(
 ISLS.sort((a,b)=>a.z-b.z);
 const CLD=Array.from({length:28},()=>({x:R()*1.2-.1,y:.7+R()*.35,r:30+R()*60,z:.3+R()*.7,c:R()<.5?0:1}));
 const NZ=document.createElement('canvas');NZ.width=NZ.height=200;
-{const g=NZ.getContext('2d'),im=g.createImageData(200,200);for(let i=0;i<im.data.length;i+=4){im.data[i]=im.data[i+1]=im.data[i+2]=R()*255;im.data[i+3]=255}g.putImageData(im,0,0)}
+{const g=NZ.getContext('2d'),im=g.createImageData(200,200);for(let i=0;i<im.data.length;i+=4){im.data[i]=im.data[i+1]=im.data[i+2]=R()*255;im.data[i+3]=255}g.putImageData(im,0,0);NZ.im=im}   // NZ.im: the same pixels, for js/23 (no read-back from the canvas)
 let NP=null,GJ=[0,0],FR=0;

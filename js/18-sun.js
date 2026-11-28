@@ -12,19 +12,23 @@
    Tweak: SIZE = sun width on the home page compared with the old moon (1 = same size as the moon disc). */
 window.SUN=(function(){
 const SIZE=2.6,STORY=58,FR=120,COLS=12,CELL=176,LOOP=8000,MOON=84;
-const im=new Image();let ok=false;im.onload=()=>{ok=true};im.src='images/sun-sheet.webp';
+const im=new Image();let ok=false;im.onload=()=>{(im.decode?im.decode():Promise.resolve()).catch(()=>{}).then(()=>{ok=true})};im.src='images/sun-sheet.webp';   // decoded off the main thread before the first draw
 function frame(){const f=reduce?0:Math.floor((performance.now()%LOOP)/LOOP*FR)%FR;return[(f%COLS)*CELL,Math.floor(f/COLS)*CELL]}
 function put(g,x,y,d,a){const[sx,sy]=frame();g.save();g.globalCompositeOperation='lighter';g.globalAlpha=a;g.drawImage(im,sx,sy,CELL,CELL,x-d/2,y-d/2,d,d);g.restore()}
 /* find the moons in the story city art: pale beige pieces; the big round ones (mostly filled box) get a sun */
 (function mark(){
   if(typeof CL==='undefined'||!CL||!CL.comps){setTimeout(mark,200);return}
-  CL.comps.forEach(o=>{if(o.base)return;const d=o.co.getContext('2d').getImageData(0,0,o.w,o.h).data;let n=0,r=0,g=0,b=0;
-    for(let j=0;j<d.length;j+=4)if(d[j+3]>8){n++;r+=d[j];g+=d[j+1];b+=d[j+2]}
+  /* one piece per idle moment (reading the pieces back all at once froze the page for ~0.5 s) */
+  const cs=CL.comps;let ci=0;(function one(){const t=performance.now();while(ci<cs.length&&performance.now()-t<6)look(cs[ci++]);if(ci<cs.length){window.requestIdleCallback?requestIdleCallback(one,{timeout:200}):setTimeout(one,16);return}pick()})();
+  function look(o){if(o.base)return;let n=0,r=0,g=0,b=0;
+    if(o.st)[n,r,g,b]=o.st;   // totals made with the pieces (js/03): reading the canvas back froze the page for ~0.5 s
+    else{const d=o.co.getContext('2d').getImageData(0,0,o.w,o.h).data;for(let j=0;j<d.length;j+=4)if(d[j+3]>8){n++;r+=d[j];g+=d[j+1];b+=d[j+2]}}
     if(!n)return;r/=n;g/=n;b/=n;
-    if(r>130&&Math.abs(r-g)<14&&r-b>15&&r-b<55){o.moon=true;o.round=n/(o.w*o.h)>.6&&o.w>60&&Math.abs(o.w-o.h)<o.w*.25}});
+    if(r>130&&Math.abs(r-g)<14&&r-b>15&&r-b<55){o.moon=true;o.round=n/(o.w*o.h)>.6&&o.w>60&&Math.abs(o.w-o.h)<o.w*.25}}
+  function pick(){
   /* only the moon nearest the middle of the city becomes the sun; the other moons are simply hidden */
   let best=null,bd=1e9;CL.comps.forEach(o=>{if(!o.round)return;const dx=o.x+o.w/2-CL.w/2;if(Math.abs(dx)<bd){bd=Math.abs(dx);best=o}});
-  if(best)best.sun=true})();
+  if(best)best.sun=true}})();
 /* story pages: fixed in the middle of the sky, on its own top layer so nothing in the backdrop covers it.
    The layer uses screen blending, so the black of the sheet disappears against the sky. */
 const ss=document.createElement('style');ss.textContent='#suncv{position:absolute;left:0;top:0;pointer-events:none;mix-blend-mode:screen;transform-origin:0 0}body.gal #suncv{display:none}';document.head.appendChild(ss);

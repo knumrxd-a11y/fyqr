@@ -21,7 +21,13 @@ window.QL=0;window.QFORCED=false;
 
 /* step 1: the grain as a still layer between the background canvas and the scene layer */
 const grain=document.createElement('div');grain.id='qgrain';grain.setAttribute('aria-hidden','true');
-grain.style.cssText='position:absolute;inset:0;pointer-events:none;display:none;opacity:.3;mix-blend-mode:overlay;background-size:200px 200px;background-image:url('+NZ.toDataURL()+')';
+grain.style.cssText='position:absolute;inset:0;pointer-events:none;display:none;opacity:.3;mix-blend-mode:overlay;background-size:200px 200px';
+/* the grain picture is encoded only when the grain is first needed, off the main thread (toBlob): toDataURL here
+   froze the home page for up to ~1.8 s */
+let gURL='';function grainBg(){if(gURL)return;gURL='…';
+  const done=b=>{if(b){gURL=URL.createObjectURL(b);grain.style.backgroundImage='url('+gURL+')'}},slow=()=>{try{NZ.toBlob(done)}catch(e){}};
+  /* the same pixels on a CPU-side canvas: encoding never waits for the graphics chip */
+  try{const o=new OffscreenCanvas(NZ.width,NZ.height),g=o.getContext('2d',{willReadFrequently:true});g.putImageData(NZ.im,0,0);o.convertToBlob().then(done,slow)}catch(e){slow()}}
 cv.after(grain);
 
 /* step 2: one pre-drawn radial glow per colour, scaled and faded into place (same shape and colour as the gradients) */
@@ -44,7 +50,7 @@ document.head.appendChild(css);
 
 function setLevel(l){
   const was=window.QL;window.QL=Math.max(0,Math.min(TOP,l));
-  grain.style.display=window.QL>=1?'block':'none';
+  if(window.QL>=1)grainBg();grain.style.display=window.QL>=1?'block':'none';
   document.body.classList.toggle('q-noblur',window.QL>=5);
   if((was>=4)!==(window.QL>=4))resize();
   if(window.__paper&&__paper.st&&__paper.st.kick)__paper.st.kick();

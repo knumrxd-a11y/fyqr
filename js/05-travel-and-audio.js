@@ -12,12 +12,12 @@ const A={c:null,on:true,step:0,nxt:0},CH=[[57,60,64,67],[53,57,60,65],[48,55,60,
 const AP=[
   ()=>{const C=window.AudioContext||window.webkitAudioContext;if(!C)return false;const c=A.c=new C();A.m=c.createGain();A.m.gain.value=A.on?.55:0;
     const comp=c.createDynamicsCompressor();A.m.connect(comp);comp.connect(c.destination);A.len=c.sampleRate*2.8;A.buf=c.createBuffer(2,A.len,c.sampleRate)},
-  ()=>noise(0),()=>noise(1),
+  ...[0,1].flatMap(ch=>[0,1,2,3,4,5,6,7].map(k=>()=>noise(ch,k))),   // 16 short pieces in order (one channel at a time was ~0.3 s)
   ()=>{const c=A.c;A.rv=c.createConvolver();A.rv.buffer=A.buf;const rg=c.createGain();rg.gain.value=.5;A.rv.connect(rg);rg.connect(A.m);
     A.lp=c.createBiquadFilter();A.lp.type='lowpass';A.lp.frequency.value=900;A.lp.connect(A.m);A.lp.connect(A.rv);A.ready=true}];
 /* white noise for the reverb tail (its own generator: the page's Math.random sequence stays as it was) */
 let nz=(Date.now()^0x9e3779b9)>>>0;
-function noise(ch){const d=A.buf.getChannelData(ch),len=A.len;for(let i=0;i<len;i++){nz=(nz*1664525+1013904223)>>>0;d[i]=(nz/2147483648-1)*Math.pow(1-i/len,2.6)}}
+function noise(ch,k){const d=A.buf.getChannelData(ch),len=A.len,i0=Math.floor(len*k/8),i1=Math.floor(len*(k+1)/8);for(let i=i0;i<i1;i++){nz=(nz*1664525+1013904223)>>>0;d[i]=(nz/2147483648-1)*Math.pow(1-i/len,2.6)}}
 let apI=0;
 function prepAudio(all){while(apI<AP.length){if(AP[apI++]()===false){apI=AP.length;return}if(!all)break}}
 (function idleAudio(){if(apI>=AP.length||A.go)return;const f=()=>{if(A.go)return;prepAudio(false);idleAudio()};
